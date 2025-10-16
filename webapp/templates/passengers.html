@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <a href="{% url 'profile' %}" class="btn btn-secondary mb-3">&larr; Назад</a>
+
+    <h2>Пассажиры</h2>
+
+    {% if perms.dbapp.add_passenger %}
+        <a href="{% url 'passenger_add' %}" class="btn btn-success mb-3">Добавить пассажира</a>
+    {% endif %}
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+        {% for passenger in passengers %}
+        <div class="col">
+            <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
+                <a href="{% url 'passenger_edit' passenger.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
+                    <i class="bi bi-person" style="font-size: 2.5rem; color: #0d6efd;"></i>
+                    <div class="card-title mt-2 fw-bold text-center">{{ passenger }}</div>
+                    <div class="text-muted text-center">Рейс: {{ passenger.flight }}</div>
+                </a>
+
+                <div class="position-absolute top-0 end-0 m-2 d-flex gap-1">
+                {% if perms.dbapp.change_baggage %}
+                    <a href="{% url 'baggage' passenger.id %}" class="btn btn-sm btn-warning" title="Редактировать багаж">
+                        <i class="bi bi-luggage"></i>
+                    </a>
+                {% endif %}
+
+                {% if perms.dbapp.delete_passenger %}
+                <form method="post" action="{% url 'passenger_delete' passenger.id %}" onsubmit="return confirm('Вы уверены, что хотите удалить пассажира {{ passenger }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+            <div class="col">
+                <div class="alert alert-info">Пассажиров пока нет.</div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

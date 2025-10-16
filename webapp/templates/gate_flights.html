@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block content %}
+{% load widget_tweaks %}
+
+<div class="container mt-4">
+    <a href="{% url 'gates' %}" class="btn btn-secondary mb-3">&larr; Назад</a>
+
+    <h2>Назначение рейсов на посадочный выход: {{ gate }}</h2>
+
+    {% if perms.dbapp.change_gateflight %}
+    <form method="post" class="mb-4">
+        {% csrf_token %}
+        {{ form.flight|add_class:"form-select mb-2" }}
+        <button type="submit" class="btn btn-success btn-sm">Добавить рейс</button>
+    </form>
+    {% endif %}
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+        {% for gf in assigned_flights %}
+        <div class="col">
+            <div class="card h-100 p-3 position-relative">
+                <div class="d-flex flex-column align-items-center">
+                    <i class="bi bi-calendar-event" style="font-size: 2.5rem; color: #0d6efd;"></i>
+                    <strong>{{ gf.flight }}</strong>
+                    <div>
+                        <label>
+                            <input type="checkbox" class="is_active_checkbox" data-id="{{ gf.id }}" {% if gf.is_active %}checked{% endif %}>
+                            Начата посадка
+                        </label>
+                    </div>
+                </div>
+
+                {% if perms.dbapp.change_gateflight %}
+                <form method="post" action="{% url 'gate_flight_delete' gf.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Удалить рейс {{ gf.flight }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+            <div class="col"><div class="alert alert-info">На этот посадочный выход ещё не назначен ни однин рейс.</div></div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.is_active_checkbox').forEach(cb => {
+    cb.addEventListener('change', function() {
+        fetch("{% url 'gate_flight_toggle' 0 %}".replace('0', this.dataset.id), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ is_active: this.checked })
+        }).then(() => location.reload())
+    })
+})
+</script>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Выход{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4 text-center">
+        <h2 class="mb-4">Вы вышли из системы</h2>
+        <p>Сеанс завершён. Вы больше не авторизованы.</p>
+        <a href="{% url 'index' %}" class="btn btn-primary w-100">На главную</a>
+    </div>
+</div>
+{% endblock %}

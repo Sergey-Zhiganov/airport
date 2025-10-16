@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block content %}
+{% load widget_tweaks %}
+
+<div class="container mt-4">
+    <a href="{% url 'check_in_desks' %}" class="btn btn-secondary mb-3">&larr; Назад</a>
+
+    <h2>Назначение рейсов на стойку регистрации: {{ desk }}</h2>
+
+    {% if perms.dbapp.change_checkindeskflight %}
+    <form method="post" class="mb-4">
+        {% csrf_token %}
+        {{ form.flight|add_class:"form-select mb-2" }}
+        <button type="submit" class="btn btn-success btn-sm">Добавить рейс</button>
+    </form>
+    {% endif %}
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+        {% for cf in assigned_flights %}
+        <div class="col">
+            <div class="card h-100 p-3 position-relative">
+                <div class="d-flex flex-column align-items-center">
+                    <i class="bi bi-person-check" style="font-size: 2.5rem; color: #0d6efd;"></i>
+                    <strong>{{ cf.flight }}</strong>
+                    <div>
+                        <label>
+                            <input type="checkbox" class="is_active_checkbox" data-id="{{ cf.id }}" {% if cf.is_active %}checked{% endif %}>
+                            Начата регистрация
+                        </label>
+                    </div>
+                </div>
+
+                {% if perms.dbapp.change_checkindeskflight %}
+                <form method="post" action="{% url 'check_in_desk_flight_delete' cf.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Удалить рейс {{ cf.flight }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+            <div class="col">
+                <div class="alert alert-info">
+                    На эту стойку ещё не назначено ни одного рейса.
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.is_active_checkbox').forEach(cb => {
+    cb.addEventListener('change', function() {
+        fetch("{% url 'check_in_desk_flight_toggle' 0 %}".replace('0', this.dataset.id), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ is_active: this.checked })
+        }).then(() => location.reload())
+    })
+})
+</script>
+{% endblock %}

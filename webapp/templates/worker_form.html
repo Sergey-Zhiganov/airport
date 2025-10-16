@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">{{ title }}</h2>
+
+    <form method="post">
+        {% csrf_token %}
+
+        {% for field in form %}
+            <div class="mb-3">
+                <label class="form-label">{{ field.label }}</label>
+                {% if field.name == 'is_superuser' and not request.user.is_superuser %}
+                    {{ field|attr:"disabled:true" }}
+                {% elif field.name == 'is_staff' and not request.user.is_staff %}
+                    {{ field|attr:"disabled:true" }}
+                {% elif field.name == "last_login" or field.name == "date_joined" %}
+                    {{ field|attr:"readonly:true" }}
+                {% else %}
+                    {{ field }}
+                {% endif %}
+                
+                {% if field.help_text %}
+                    <small class="form-text text-muted">{{ field.help_text }}</small>
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        <button type="submit" class="btn btn-primary" {% if not perms.dbapp.change_worker %}disabled{% endif %}>Сохранить</button>
+        <a href="{% url 'workers' %}" class="btn btn-secondary">Отмена</a>
+    </form>
+</div>
+
+{% include 'includes/phone_mask.html' %}
+{% endblock %}

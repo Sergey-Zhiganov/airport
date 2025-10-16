@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="mb-4">{{ title }}</h2>
+
+    <form method="post" id="flightForm">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label class="form-label">Самолёт</label>
+            {{ form.airplane|add_class:"form-control" }}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Номер рейса</label>
+            <div class="input-group">
+                <span class="input-group-text" id="iataPrefix">---</span>
+                {{ form.number|add_class:"form-control" }}
+            </div>
+            <small class="form-text text-muted">Введите номер рейса</small>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Аэропорт вылета</label>
+            {{ form.departure_airport|add_class:"form-control" }}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Время вылета</label>
+            {{ form.planned_departure|add_class:"form-control" }}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Аэропорт прибытия</label>
+            {{ form.arrival_airport|add_class:"form-control" }}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Время прибытия</label>
+            {{ form.planned_arrival|add_class:"form-control" }}
+        </div>
+
+        {% if not hide_status %}
+        <div class="mb-3">
+            <label class="form-label">Статус рейса</label>
+            {{ form.flight_status|add_class:"form-control" }}
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary"
+            {% if not perms.dbapp.change_flight and not perms.dbapp.change_flight_status %}disabled{% endif %}>
+            Сохранить
+        </button>
+        <a href="{% url 'flights' %}" class="btn btn-secondary">Отмена</a>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const airplaneSelect = document.getElementById('id_airplane');
+    const iataPrefix = document.getElementById('iataPrefix');
+    const iataData = {{ iata_codes|safe }};
+
+    // IATA-префикс
+    function updateIATAPrefix() {
+        const code = iataData[airplaneSelect.value] || '---';
+        iataPrefix.textContent = code;
+    }
+    airplaneSelect.addEventListener('change', updateIATAPrefix);
+    updateIATAPrefix();
+
+    const departureAirport = document.getElementById('id_departure_airport');
+    const arrivalAirport = document.getElementById('id_arrival_airport');
+    const plannedDeparture = document.getElementById('id_planned_departure');
+    const plannedArrival = document.getElementById('id_planned_arrival');
+    const statusSelect = document.getElementById('id_flight_status');
+
+    function updateFields() {
+        if (departureAirport.value === '1') {
+            plannedDeparture.removeAttribute('disabled');
+            plannedDeparture.required = true;
+        } else {
+            plannedDeparture.setAttribute('disabled', 'disabled');
+            plannedDeparture.required = false;
+            plannedDeparture.value = '';
+        }
+
+        if (arrivalAirport.value === '1') {
+            plannedArrival.removeAttribute('disabled');
+            plannedArrival.required = true;
+        } else {
+            plannedArrival.setAttribute('disabled', 'disabled');
+            plannedArrival.required = false;
+            plannedArrival.value = '';
+        }
+    }
+
+    departureAirport.addEventListener('change', updateFields);
+    arrivalAirport.addEventListener('change', updateFields);
+
+    updateFields();
+});
+</script>
+{% endblock %}

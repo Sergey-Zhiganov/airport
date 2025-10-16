@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>{{ title }}</h2>
+
+    <form method="post" class="mt-4">
+        {% csrf_token %}
+
+        <!-- Поля, которые можно редактировать -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Фактические времена</h5>
+
+                {% if form.actual_departure %}
+                <div class="mb-3">
+                    <label class="form-label">Фактическое время вылета</label>
+                    {{ form.actual_departure|add_class:"form-control" }}
+                </div>
+                {% endif %}
+
+                {% if form.actual_arrival %}
+                <div class="mb-3">
+                    <label class="form-label">Фактическое время прибытия</label>
+                    {{ form.actual_arrival|add_class:"form-control" }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Остальные поля: только для просмотра -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Регистрация и посадка</h5>
+
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <strong>Открытие регистрации:</strong>
+                        <span>{{ form.check_in_open_time.value|default:"—" }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <strong>Закрытие регистрации:</strong>
+                        <span>{{ form.check_in_close_time.value|default:"—" }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <strong>Открытие посадки:</strong>
+                        <span>{{ form.boarding_open_time.value|default:"—" }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <strong>Закрытие посадки:</strong>
+                        <span>{{ form.boarding_close_time.value|default:"—" }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-start">
+            <button type="submit" class="btn btn-primary me-2">Сохранить</button>
+            <a href="{% url 'flights' %}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

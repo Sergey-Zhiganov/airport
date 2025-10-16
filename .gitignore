@@ -1,0 +1,8 @@
+passwords.txt
+
+dbapp/__pycache__/
+dbapp/migrations/__pycache__/
+flypodolsk/__pycache__/
+webapp/__pycache__/
+webapp/migrations/__pycache__/
+webapp/templatetags/__pycache__/

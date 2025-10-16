@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <a href="{% url 'profile' %}" class="btn btn-secondary mb-3">&larr; Назад</a>
+
+    <h2>Авиакомпании</h2>
+
+    {% if perms.dbapp.add_airline %}
+        <a href="{% url 'airline_add' %}" class="btn btn-success mb-3">Добавить авиакомпанию</a>
+    {% endif %}
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+        {% for airline in airlines %}
+        <div class="col">
+            <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
+                <a href="{% url 'airline_edit' airline.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
+                    <i class="bi bi-building" style="font-size: 2.5rem; color: #0d6efd;"></i>
+                    <div class="card-title mt-2 fw-bold text-center">{{ airline }}</div>
+                </a>
+
+                {% if perms.dbapp.delete_airline %}
+                <form method="post" action="{% url 'airline_delete' airline.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Вы уверены, что хотите удалить авиакомпанию {{ airline }}?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+            <div class="col">
+                <div class="alert alert-info">Авиакомпаний пока нет.</div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
