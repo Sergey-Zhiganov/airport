@@ -11,15 +11,32 @@
         <a href="{% url 'flight_add' %}" class="btn btn-success mb-3">Добавить рейс</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_number" class="form-label">Поиск по номеру рейса</label>
+                    <input type="text" class="form-control" id="search_number" 
+                           placeholder="Введите номер рейса">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_status" class="form-label">Поиск по статусу</label>
+                    <input type="text" class="form-control" id="search_status" 
+                           placeholder="Введите статус рейса">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="flights-container">
         {% for flight in flights %}
-        <div class="col">
+        <div class="col flight-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'flight_edit' flight.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
-                    <i class="bi bi bi-calendar-event" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ flight }}</div>
+                    <i class="bi bi-calendar-event" style="font-size: 2.5rem; color: #0d6efd;"></i>
+                    <div class="card-title mt-2 fw-bold text-center flight-number">{{ flight }}</div>
 
-                    <div class="text-muted small text-center">
+                    <div class="text-muted small text-center flight-status">
                         {{ flight.flight_status }}
                     </div>
                 </a>
@@ -43,7 +60,7 @@
                         {% endif %}
 
                     </div>
-                    {% endif %}
+                {% endif %}
             </div>
         </div>
         {% empty %}
@@ -53,4 +70,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterFlights() {
+    const searchNumber = document.getElementById('search_number').value.toLowerCase().trim();
+    const searchStatus = document.getElementById('search_status').value.toLowerCase().trim();
+    const flightCards = document.querySelectorAll('.flight-card');
+    
+    flightCards.forEach(card => {
+        const numberElement = card.querySelector('.flight-number');
+        const statusElement = card.querySelector('.flight-status');
+        const numberText = numberElement.textContent.toLowerCase();
+        const statusText = statusElement.textContent.toLowerCase();
+        
+        let matchesNumber = searchNumber === '' || numberText.includes(searchNumber);
+        let matchesStatus = searchStatus === '' || statusText.includes(searchStatus);
+        
+        if (matchesNumber && matchesStatus) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_number').addEventListener('input', filterFlights);
+document.getElementById('search_status').addEventListener('input', filterFlights);
+</script>
+
+<style>
+.flight-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

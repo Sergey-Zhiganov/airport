@@ -11,13 +11,35 @@
         <a href="{% url 'airline_add' %}" class="btn btn-success mb-3">Добавить авиакомпанию</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_name" class="form-label">Поиск по названию</label>
+                    <input type="text" class="form-control" id="search_name" 
+                           placeholder="Введите название авиакомпании">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_code" class="form-label">Поиск по коду</label>
+                    <input type="text" class="form-control" id="search_code" 
+                           placeholder="Введите IATA или ICAO код">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="airlines-container">
         {% for airline in airlines %}
-        <div class="col">
+        <div class="col airline-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'airline_edit' airline.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-building" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ airline }}</div>
+                    <div class="card-title mt-2 fw-bold text-center airline-name">{{ airline }}</div>
+                    <div class="text-muted text-center airline-codes">
+                        <strong>IATA:</strong> {{ airline.IATA_code }}
+                        |
+                        <strong>ICAO:</strong> {{ airline.ICAO_code }}
+                    </div>
                 </a>
 
                 {% if perms.dbapp.delete_airline %}
@@ -37,4 +59,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterAirlines() {
+    const searchName = document.getElementById('search_name').value.toLowerCase().trim();
+    const searchCode = document.getElementById('search_code').value.toLowerCase().trim();
+    const airlineCards = document.querySelectorAll('.airline-card');
+    
+    airlineCards.forEach(card => {
+        const nameElement = card.querySelector('.airline-name');
+        const codesElement = card.querySelector('.airline-codes');
+        const name = nameElement.textContent.toLowerCase();
+        const codes = codesElement.textContent.toLowerCase();
+        
+        let matchesName = searchName === '' || name.includes(searchName);
+        let matchesCode = searchCode === '' || codes.includes(searchCode);
+        
+        if (matchesName && matchesCode) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_name').addEventListener('input', filterAirlines);
+document.getElementById('search_code').addEventListener('input', filterAirlines);
+</script>
+
+<style>
+.airline-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

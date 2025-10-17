@@ -11,13 +11,35 @@
         <a href="{% url 'airport_add' %}" class="btn btn-success mb-3">Добавить аэропорт</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_airport" class="form-label">Поиск по названию аэропорта</label>
+                    <input type="text" class="form-control" id="search_airport" 
+                           placeholder="Введите название аэропорта">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_code" class="form-label">Поиск по коду</label>
+                    <input type="text" class="form-control" id="search_code" 
+                           placeholder="Введите IATA или ICAO код">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="airports-container">
         {% for airport in airports %}
-        <div class="col">
+        <div class="col airport-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'airport_edit' airport.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-geo-alt" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ airport }}</div>
+                    <div class="card-title mt-2 fw-bold text-center airport-name">{{ airport }}</div>
+                    <div class="text-muted text-center airport-codes">
+                        <strong>IATA:</strong> {{ airport.IATA_code }}
+                        |
+                        <strong>ICAO:</strong> {{ airport.ICAO_code }}
+                    </div>
                 </a>
 
                 {% if perms.dbapp.delete_airport %}
@@ -37,4 +59,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterAirports() {
+    const searchAirport = document.getElementById('search_airport').value.toLowerCase().trim();
+    const searchCode = document.getElementById('search_code').value.toLowerCase().trim();
+    const airportCards = document.querySelectorAll('.airport-card');
+    
+    airportCards.forEach(card => {
+        const airportElement = card.querySelector('.airport-name');
+        const codesElement = card.querySelector('.airport-codes');
+        const airportText = airportElement.textContent.toLowerCase();
+        const codesText = codesElement.textContent.toLowerCase();
+        
+        let matchesAirport = searchAirport === '' || airportText.includes(searchAirport);
+        let matchesCode = searchCode === '' || codesText.includes(searchCode);
+        
+        if (matchesAirport && matchesCode) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_airport').addEventListener('input', filterAirports);
+document.getElementById('search_code').addEventListener('input', filterAirports);
+</script>
+
+<style>
+.airport-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

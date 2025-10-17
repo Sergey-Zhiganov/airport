@@ -15,13 +15,25 @@
     </form>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label for="search_flight" class="form-label">Поиск по номеру рейса</label>
+                    <input type="text" class="form-control" id="search_flight" 
+                           placeholder="Введите номер рейса">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="flights-container">
         {% for gf in assigned_flights %}
-        <div class="col">
+        <div class="col flight-card">
             <div class="card h-100 p-3 position-relative">
                 <div class="d-flex flex-column align-items-center">
                     <i class="bi bi-calendar-event" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <strong>{{ gf.flight }}</strong>
+                    <strong class="flight-number">{{ gf.flight }}</strong>
                     <div>
                         <label>
                             <input type="checkbox" class="is_active_checkbox" data-id="{{ gf.id }}" {% if gf.is_active %}checked{% endif %}>
@@ -41,12 +53,42 @@
             </div>
         </div>
         {% empty %}
-            <div class="col"><div class="alert alert-info">На этот посадочный выход ещё не назначен ни однин рейс.</div></div>
+            <div class="col">
+                <div class="alert alert-info">На этот посадочный выход ещё не назначен ни однин рейс.</div>
+            </div>
         {% endfor %}
     </div>
 </div>
 
 <script>
+function filterFlights() {
+    const searchFlight = document.getElementById('search_flight').value.toLowerCase().trim();
+    const flightCards = document.querySelectorAll('.flight-card');
+    let visibleCount = 0;
+    
+    flightCards.forEach(card => {
+        const flightElement = card.querySelector('.flight-number');
+        const flightText = flightElement.textContent.toLowerCase();
+        
+        if (searchFlight === '' || flightText.includes(searchFlight)) {
+            card.style.display = 'block';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    const emptyAlert = document.querySelector('.alert-info');
+    if (emptyAlert && searchFlight !== '' && visibleCount === 0) {
+        emptyAlert.textContent = `Рейсы по запросу "${searchFlight}" не найдены.`;
+        emptyAlert.style.display = 'block';
+    } else if (emptyAlert && visibleCount > 0) {
+        emptyAlert.style.display = 'none';
+    }
+}
+
+document.getElementById('search_flight').addEventListener('input', filterFlights);
+
 document.querySelectorAll('.is_active_checkbox').forEach(cb => {
     cb.addEventListener('change', function() {
         fetch("{% url 'gate_flight_toggle' 0 %}".replace('0', this.dataset.id), {
@@ -57,7 +99,15 @@ document.querySelectorAll('.is_active_checkbox').forEach(cb => {
             },
             body: JSON.stringify({ is_active: this.checked })
         }).then(() => location.reload())
-    })
-})
+    });
+});
+
+document.addEventListener('DOMContentLoaded', filterFlights);
 </script>
+
+<style>
+.flight-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

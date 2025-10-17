@@ -11,22 +11,39 @@
         <a href="{% url 'worker_add' %}" class="btn btn-success mb-3">Добавить сотрудника</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_fio" class="form-label">Поиск по ФИО</label>
+                    <input type="text" class="form-control" id="search_fio" 
+                           placeholder="Введите ФИО сотрудника">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_position" class="form-label">Поиск по должности</label>
+                    <input type="text" class="form-control" id="search_position" 
+                           placeholder="Введите должность">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="workers-container">
         {% for worker in workers %}
-        <div class="col">
+        <div class="col worker-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'worker_edit' worker.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-people" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ worker }}</div>
+                    <div class="card-title mt-2 fw-bold text-center worker-name">{{ worker }}</div>
 
-                    <div class="text-muted small text-center">
+                    <div class="text-muted small text-center worker-position">
                         {{ worker.group_names|default:"Сотрудник" }}
                     </div>
 
                 </a>
 
                 {% if perms.dbapp.delete_worker %}
-                <form method="post" action="{% url 'worker_delete' worker.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Вы уверены, что хотите удалить сотрудника {{ worker.full_name }}?');">
+                <form method="post" action="{% url 'worker_delete' worker.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Вы уверены, что хотите удалить сотрудника {{ worker }}?');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-danger">
                         <i class="bi bi-trash"></i>
@@ -42,4 +59,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterWorkers() {
+    const searchFio = document.getElementById('search_fio').value.toLowerCase().trim();
+    const searchPosition = document.getElementById('search_position').value.toLowerCase().trim();
+    const workerCards = document.querySelectorAll('.worker-card');
+    
+    workerCards.forEach(card => {
+        const nameElement = card.querySelector('.worker-name');
+        const positionElement = card.querySelector('.worker-position');
+        const name = nameElement.textContent.toLowerCase();
+        const position = positionElement.textContent.toLowerCase();
+        
+        let matchesFio = searchFio === '' || name.includes(searchFio);
+        let matchesPosition = searchPosition === '' || position.includes(searchPosition);
+        
+        if (matchesFio && matchesPosition) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_fio').addEventListener('input', filterWorkers);
+document.getElementById('search_position').addEventListener('input', filterWorkers);
+</script>
+
+<style>
+.worker-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

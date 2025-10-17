@@ -11,13 +11,31 @@
         <a href="{% url 'airplane_add' %}" class="btn btn-success mb-3">Добавить самолёт</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_airplane" class="form-label">Поиск по самолёту</label>
+                    <input type="text" class="form-control" id="search_airplane" 
+                           placeholder="Введите модель или номер самолёта">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_airline" class="form-label">Поиск по авиакомпании</label>
+                    <input type="text" class="form-control" id="search_airline" 
+                           placeholder="Введите название авиакомпании">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="airplanes-container">
         {% for airplane in airplanes %}
-        <div class="col">
+        <div class="col airplane-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'airplane_edit' airplane.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-airplane" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ airplane }}</div>
+                    <div class="card-title mt-2 fw-bold text-center airplane-model">{{ airplane }}</div>
+                    <div class="text-muted text-center airplane-airline">{{ airplane.airline }}</div>
                 </a>
 
                 {% if perms.dbapp.delete_airplane %}
@@ -37,4 +55,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterAirplanes() {
+    const searchAirplane = document.getElementById('search_airplane').value.toLowerCase().trim();
+    const searchAirline = document.getElementById('search_airline').value.toLowerCase().trim();
+    const airplaneCards = document.querySelectorAll('.airplane-card');
+    
+    airplaneCards.forEach(card => {
+        const airplaneElement = card.querySelector('.airplane-model');
+        const airlineElement = card.querySelector('.airplane-airline');
+        const airplaneText = airplaneElement.textContent.toLowerCase();
+        const airlineText = airlineElement.textContent.toLowerCase();
+        
+        let matchesAirplane = searchAirplane === '' || airplaneText.includes(searchAirplane);
+        let matchesAirline = searchAirline === '' || airlineText.includes(searchAirline);
+        
+        if (matchesAirplane && matchesAirline) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_airplane').addEventListener('input', filterAirplanes);
+document.getElementById('search_airline').addEventListener('input', filterAirplanes);
+</script>
+
+<style>
+.airplane-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

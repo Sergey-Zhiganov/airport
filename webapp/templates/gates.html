@@ -11,23 +11,40 @@
         <a href="{% url 'gate_add' %}" class="btn btn-success mb-3">Добавить посадочный выход</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_gate" class="form-label">Поиск по номеру выхода</label>
+                    <input type="text" class="form-control" id="search_gate" 
+                           placeholder="Введите номер выхода">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_worker" class="form-label">Поиск по сотруднику</label>
+                    <input type="text" class="form-control" id="search_worker" 
+                           placeholder="Введите ФИО сотрудника">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="gates-container">
         {% for gate in gates %}
-        <div class="col">
+        <div class="col gate-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'gate_edit' gate.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-person-check" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ gate }}</div>
+                    <div class="card-title mt-2 fw-bold text-center gate-number">{{ gate }}</div>
                     {% if gate.worker %}
-                        <div class="text-muted text-center">{{ gate.worker }}</div>
+                        <div class="text-muted text-center gate-worker">{{ gate.worker }}</div>
                     {% else %}
-                        <div class="text-muted text-center">Сотрудник не назначен</div>
+                        <div class="text-muted text-center gate-worker">Сотрудник не назначен</div>
                     {% endif %}
                 </a>
 
-                {% if desk.worker %}
-                    {% if perms.dbapp.change_checkindeskflight or perms.dbapp.change_is_active_checkindeskflight %}
-                        <a href="{% url 'check_in_desk_flights' desk.id %}" 
+                {% if gate.worker %}
+                    {% if perms.dbapp.change_gateassignment or perms.dbapp.change_is_active_gateassignment %}
+                        <a href="{% url 'gate_flights' gate.id %}" 
                         class="btn btn-sm btn-primary position-absolute top-0 start-0 m-2" 
                         title="Назначить рейсы на посадочный выход">
                         <i class="bi bi-journal-plus"></i>
@@ -56,4 +73,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterGates() {
+    const searchGate = document.getElementById('search_gate').value.toLowerCase().trim();
+    const searchWorker = document.getElementById('search_worker').value.toLowerCase().trim();
+    const gateCards = document.querySelectorAll('.gate-card');
+    
+    gateCards.forEach(card => {
+        const gateElement = card.querySelector('.gate-number');
+        const workerElement = card.querySelector('.gate-worker');
+        const gateText = gateElement.textContent.toLowerCase();
+        const workerText = workerElement.textContent.toLowerCase();
+        
+        let matchesGate = searchGate === '' || gateText.includes(searchGate);
+        let matchesWorker = searchWorker === '' || workerText.includes(searchWorker);
+        
+        if (matchesGate && matchesWorker) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_gate').addEventListener('input', filterGates);
+document.getElementById('search_worker').addEventListener('input', filterGates);
+</script>
+
+<style>
+.gate-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

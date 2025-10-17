@@ -11,17 +11,34 @@
         <a href="{% url 'check_in_desk_add' %}" class="btn btn-success mb-3">Добавить стойку регистрации</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="search_desk" class="form-label">Поиск по номеру стойки</label>
+                    <input type="text" class="form-control" id="search_desk" 
+                           placeholder="Введите номер стойки">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_worker" class="form-label">Поиск по сотруднику</label>
+                    <input type="text" class="form-control" id="search_worker" 
+                           placeholder="Введите ФИО сотрудника">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="desks-container">
         {% for desk in check_in_desks %}
-        <div class="col">
+        <div class="col desk-card">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'check_in_desk_edit' desk.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-person-check" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ desk }}</div>
+                    <div class="card-title mt-2 fw-bold text-center desk-number">{{ desk }}</div>
                     {% if desk.worker %}
-                        <div class="text-muted text-center">{{ desk.worker }}</div>
+                        <div class="text-muted text-center desk-worker">{{ desk.worker }}</div>
                     {% else %}
-                        <div class="text-muted text-center">Сотрудник не назначен</div>
+                        <div class="text-muted text-center desk-worker">Сотрудник не назначен</div>
                     {% endif %}
                 </a>
                 
@@ -56,4 +73,37 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterDesks() {
+    const searchDesk = document.getElementById('search_desk').value.toLowerCase().trim();
+    const searchWorker = document.getElementById('search_worker').value.toLowerCase().trim();
+    const deskCards = document.querySelectorAll('.desk-card');
+    
+    deskCards.forEach(card => {
+        const deskElement = card.querySelector('.desk-number');
+        const workerElement = card.querySelector('.desk-worker');
+        const deskText = deskElement.textContent.toLowerCase();
+        const workerText = workerElement.textContent.toLowerCase();
+        
+        let matchesDesk = searchDesk === '' || deskText.includes(searchDesk);
+        let matchesWorker = searchWorker === '' || workerText.includes(searchWorker);
+        
+        if (matchesDesk && matchesWorker) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_desk').addEventListener('input', filterDesks);
+document.getElementById('search_worker').addEventListener('input', filterDesks);
+</script>
+
+<style>
+.desk-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}

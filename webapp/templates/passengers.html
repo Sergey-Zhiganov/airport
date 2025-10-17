@@ -11,14 +11,59 @@
         <a href="{% url 'passenger_add' %}" class="btn btn-success mb-3">Добавить пассажира</a>
     {% endif %}
 
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="search_passenger" class="form-label">Поиск по ФИО пассажира</label>
+                    <input type="text" class="form-control" id="search_passenger" 
+                           placeholder="Введите ФИО пассажира">
+                </div>
+                <div class="col-md-4">
+                    <label for="search_flight" class="form-label">Поиск по рейсу</label>
+                    <input type="text" class="form-control" id="search_flight" 
+                           placeholder="Введите номер рейса">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Фильтр по статусу</label>
+                    <div class="d-flex gap-2">
+                        <select class="form-select" id="filter_check_in">
+                            <option value="">Все регистрации</option>
+                            <option value="true">Регистрация пройдена</option>
+                            <option value="false">Регистрация не пройдена</option>
+                        </select>
+                        <select class="form-select" id="filter_boarding">
+                            <option value="">Все посадки</option>
+                            <option value="true">Посадка пройдена</option>
+                            <option value="false">Посадка не пройдена</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="passengers-container">
         {% for passenger in passengers %}
-        <div class="col">
+        <div class="col passenger-card" 
+             data-check-in="{{ passenger.check_in_passed|lower }}" 
+             data-boarding="{{ passenger.boarding_passed|lower }}">
             <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'passenger_edit' passenger.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-person" style="font-size: 2.5rem; color: #0d6efd;"></i>
-                    <div class="card-title mt-2 fw-bold text-center">{{ passenger }}</div>
-                    <div class="text-muted text-center">Рейс: {{ passenger.flight }}</div>
+                    <div class="card-title mt-2 fw-bold text-center passenger-name">{{ passenger }}</div>
+                    <div class="text-muted text-center passenger-flight">Рейс: {{ passenger.flight }}</div>
+                    
+                    <div class="mt-2 small text-center">
+                        <div class="passenger-check-in {% if passenger.check_in_passed %}text-success{% else %}text-danger{% endif %}">
+                            <i class="bi {% if passenger.check_in_passed %}bi-check-circle-fill{% else %}bi-x-circle-fill{% endif %}"></i>
+                            Регистрация: {% if passenger.check_in_passed %}пройдена{% else %}не пройдена{% endif %}
+                        </div>
+                        <div class="passenger-boarding {% if passenger.boarding_passed %}text-success{% else %}text-danger{% endif %}">
+                            <i class="bi {% if passenger.boarding_passed %}bi-check-circle-fill{% else %}bi-x-circle-fill{% endif %}"></i>
+                            Посадка: {% if passenger.boarding_passed %}пройдена{% else %}не пройдена{% endif %}
+                        </div>
+                    </div>
                 </a>
 
                 <div class="position-absolute top-0 end-0 m-2 d-flex gap-1">
@@ -36,6 +81,7 @@
                     </button>
                 </form>
                 {% endif %}
+                </div>
             </div>
         </div>
         {% empty %}
@@ -45,4 +91,45 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+function filterPassengers() {
+    const searchPassenger = document.getElementById('search_passenger').value.toLowerCase().trim();
+    const searchFlight = document.getElementById('search_flight').value.toLowerCase().trim();
+    const filterCheckIn = document.getElementById('filter_check_in').value;
+    const filterBoarding = document.getElementById('filter_boarding').value;
+    const passengerCards = document.querySelectorAll('.passenger-card');
+    
+    passengerCards.forEach(card => {
+        const passengerElement = card.querySelector('.passenger-name');
+        const flightElement = card.querySelector('.passenger-flight');
+        const passengerText = passengerElement.textContent.toLowerCase();
+        const flightText = flightElement.textContent.toLowerCase();
+        const checkInStatus = card.getAttribute('data-check-in');
+        const boardingStatus = card.getAttribute('data-boarding');
+        
+        let matchesPassenger = searchPassenger === '' || passengerText.includes(searchPassenger);
+        let matchesFlight = searchFlight === '' || flightText.includes(searchFlight);
+        let matchesCheckIn = filterCheckIn === '' || checkInStatus === filterCheckIn;
+        let matchesBoarding = filterBoarding === '' || boardingStatus === filterBoarding;
+        
+        if (matchesPassenger && matchesFlight && matchesCheckIn && matchesBoarding) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_passenger').addEventListener('input', filterPassengers);
+document.getElementById('search_flight').addEventListener('input', filterPassengers);
+document.getElementById('filter_check_in').addEventListener('change', filterPassengers);
+document.getElementById('filter_boarding').addEventListener('change', filterPassengers);
+</script>
+
+<style>
+.passenger-card {
+    transition: all 0.3s ease;
+}
+</style>
 {% endblock %}
