@@ -772,7 +772,7 @@ def gate_flights(request: HttpRequest, gate_id: int):
         return render(request, "error.html", context, status=403)
 
     available_flights = Flight.objects.exclude(
-        checkindeskflight__gate=gate
+        gateflight__gate=gate
     ).exclude(flight_status__in=[1, 2, 9])
 
     if request.method == 'POST':
