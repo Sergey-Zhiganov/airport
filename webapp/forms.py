@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from matplotlib import widgets
 
-from dbapp.models import Airline, Airplane, Airport, Baggage, CheckInDesk, CheckInDeskFlight, Flight, FlightTime, Gate, GateFlight, Passenger, Worker
+from dbapp.models import Airline, Airplane, Airport, Baggage, BoardingPass, CheckInDesk, CheckInDeskFlight, Flight, FlightTime, Gate, GateFlight, Passenger, Worker
 
 class LoginForm(AuthenticationForm):
     username = forms.CharField(
@@ -303,4 +303,12 @@ class BaggageForm(forms.ModelForm):
         widgets = {
             'weight': forms.NumberInput(attrs={'step': '0.01', 'class': 'form-control'}),
             'is_removed': forms.CheckboxInput(attrs={'class': 'form-check-input'})
+        }
+
+class BoardingPassForm(forms.ModelForm):
+    class Meta:
+        model = BoardingPass
+        fields = ['seat']
+        widgets = {
+            'seat': forms.HiddenInput()
         }

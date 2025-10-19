@@ -4,35 +4,106 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h2 class="mb-4">Выбор места для рейса {{ flight }}</h2>
+    <h2 class="mb-4">{{ title }}</h2>
+    
+    {% if not can_modify %}
+    <div class="alert alert-warning">
+        <strong>Режим просмотра:</strong> У вас нет прав для изменения посадочного талона.
+    </div>
+    {% endif %}
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Информация о пассажире</h5>
+            <p class="mb-1"><strong>ФИО:</strong> {{ passenger }}</p>
+            <p class="mb-1"><strong>Рейс:</strong> {{ passenger.flight }}</p>
+            <p class="mb-0"><strong>Самолет:</strong> {{ passenger.flight.airplane }}</p>
+        </div>
+    </div>
 
-    <form method="post" id="seat-form">
+    <form method="post" id="boarding-pass-form">
         {% csrf_token %}
-        <input type="hidden" name="seat" id="selected-seat">
+        {{ form.seat }}
+        
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {{ form.non_field_errors|join:", " }}
+            </div>
+        {% endif %}
 
-        <div id="seat-preview" class="border p-3 mt-4 bg-light text-center">
-            <h5>Выберите место</h5>
+        <div id="seat-preview" class="border p-3 mt-4 bg-light">
+            <h5 class="text-center">Схема мест в самолете</h5>
+            <p class="text-center text-muted mb-3">Компоновка: {{ layout }}, Ряды: {{ rows }}</p>
+            
+            <div class="alert {% if boarding_pass.seat %}alert-success{% else %}alert-warning{% endif %}">
+                <strong>Текущее место:</strong> 
+                <span id="current-seat-display">
+                    {% if boarding_pass.seat %}
+                        {{ boarding_pass.seat }}
+                    {% else %}
+                        Не назначено
+                    {% endif %}
+                </span>
+            </div>
+
             <div id="seat-scroll">
                 <div id="seat-container" class="mt-3"></div>
             </div>
+
+            <div class="mt-3 text-center">
+                <small class="text-muted">
+                    💺 - Свободно<br>
+                    🔴 - Занято<br>
+                    🟢 - Выбрано вами<br>
+                    🔵 - Текущее место<br>
+                    ⚪ - Недоступно для выбора
+                </small>
+            </div>
         </div>
 
-        <button type="submit" class="btn btn-primary mt-3" id="save-btn" disabled>Сохранить</button>
-        <a href="{% url 'flights' %}" class="btn btn-secondary mt-3">Отмена</a>
+        <div class="mt-4 d-flex gap-2 flex-wrap">
+            {% if can_modify %}
+                <button type="submit" name="action" value="save" class="btn btn-primary" id="save-btn" disabled>
+                    {% if is_edit %}
+                        Изменить место
+                    {% else %}
+                        Назначить место
+                    {% endif %}
+                </button>
+            {% endif %}
+            
+            {% if can_delete and boarding_pass.seat %}
+                <button type="submit" name="action" value="clear" class="btn btn-warning" id="clear-btn">
+                    Освободить место
+                </button>
+            {% endif %}
+            
+            <a href="{% url 'passengers' %}" class="btn btn-secondary">
+                Назад
+            </a>
+        </div>
     </form>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    const layout = "{{ airplane.layout }}";
-    const rows = parseInt("{{ airplane.rows }}");
-    const container = document.getElementById('seat-container');
-    const seatInput = document.getElementById('selected-seat');
+    const seatInput = document.querySelector('input[name="seat"]');
     const saveBtn = document.getElementById('save-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const currentSeatDisplay = document.getElementById('current-seat-display');
+    const container = document.getElementById('seat-container');
+    
+    const layout = '{{ layout }}';
+    const rows = parseInt('{{ rows }}');
+    const occupiedSeats = JSON.parse('{{ occupied_seats|escapejs }}');
+    const currentSeat = '{{ boarding_pass.seat|default:"" }}';
+    const canModify = '{{ can_modify }}' === 'True';
+    
+    let selectedSeat = '';
 
     function buildSeats() {
         if (!layout || isNaN(rows) || rows < 1) {
-            container.innerHTML = '<p class="text-muted">Нет данных для компоновки</p>';
+            container.innerHTML = '<p class="text-muted text-center">Информация о компоновке недоступна</p>';
             return;
         }
 
@@ -42,10 +113,41 @@ document.addEventListener('DOMContentLoaded', () => {
         for (let r = 1; r <= rows; r++) {
             let letterIndex = 0;
             let rowHTML = `<div class="seat-row">`;
+            
+            rowHTML += `<span class="row-number">${r}</span>`;
+            
             for (let g = 0; g < groups.length; g++) {
                 for (let i = 0; i < groups[g]; i++) {
-                    const seatCode = getSeatLetter(letterIndex) + r;
-                    rowHTML += `<span class="seat" data-seat="${seatCode}">${seatCode}</span>`;
+                    const seatLetter = getSeatLetter(letterIndex);
+                    const seatCode = seatLetter + r;
+                    const isOccupied = occupiedSeats.includes(seatCode) && seatCode !== currentSeat;
+                    const isSelected = selectedSeat === seatCode;
+                    const isCurrent = currentSeat === seatCode;
+                    
+                    let seatClass = 'seat';
+                    let seatSymbol = '💺';
+                    let clickable = false;
+                    
+                    if (isSelected) {
+                        seatClass += ' seat-selected';
+                        seatSymbol = '🟢';
+                        clickable = true;
+                    } else if (isCurrent) {
+                        seatClass += ' seat-current';
+                        seatSymbol = '🔵';
+                        clickable = true;
+                    } else if (isOccupied) {
+                        seatClass += ' seat-occupied';
+                        seatSymbol = '🔴';
+                    } else if (canModify) {
+                        seatClass += ' seat-available';
+                        clickable = true;
+                    } else {
+                        seatClass += ' seat-disabled';
+                        seatSymbol = '⚪';
+                    }
+                    
+                    rowHTML += `<span class="${seatClass}" data-seat="${seatCode}" data-clickable="${clickable}">${seatSymbol}</span>`;
                     letterIndex++;
                 }
                 if (g < groups.length - 1)
@@ -56,15 +158,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         container.innerHTML = html;
-
-        document.querySelectorAll('.seat').forEach(seat => {
-            seat.addEventListener('click', () => {
-                document.querySelectorAll('.seat').forEach(s => s.classList.remove('selected'));
-                seat.classList.add('selected');
-                seatInput.value = seat.dataset.seat;
-                saveBtn.disabled = false;
-            });
+        
+        
+        document.querySelectorAll('.seat[data-clickable="true"]').forEach(seat => {
+            seat.addEventListener('click', handleSeatClick);
         });
+        
+        updateUI();
+    }
+
+    function handleSeatClick(event) {
+        if (!canModify) return;
+        
+        const seatElement = event.currentTarget;
+        const seatCode = seatElement.getAttribute('data-seat');
+        
+        if (selectedSeat === seatCode) {
+            
+            selectedSeat = '';
+        } else {
+            
+            selectedSeat = seatCode;
+        }
+        
+        seatInput.value = selectedSeat;
+        buildSeats();
+        updateUI();
+    }
+
+    function updateUI() {
+        if (selectedSeat) {
+            currentSeatDisplay.textContent = `${currentSeat || 'Не назначено'} → ${selectedSeat}`;
+            currentSeatDisplay.className = 'text-primary fw-bold';
+        } else {
+            currentSeatDisplay.textContent = currentSeat || 'Не назначено';
+            currentSeatDisplay.className = '';
+        }
+        
+        if (saveBtn) {
+            saveBtn.disabled = !selectedSeat || selectedSeat === currentSeat;
+            
+            if (currentSeat && selectedSeat && selectedSeat !== currentSeat) {
+                saveBtn.textContent = `Изменить место (${currentSeat} → ${selectedSeat})`;
+            } else if (!currentSeat && selectedSeat) {
+                saveBtn.textContent = `Назначить место ${selectedSeat}`;
+            } else if (currentSeat) {
+                saveBtn.textContent = `Изменить место`;
+            } else {
+                saveBtn.textContent = 'Назначить место';
+            }
+        }
     }
 
     function getSeatLetter(index) {
@@ -100,7 +243,18 @@ document.addEventListener('DOMContentLoaded', () => {
     align-items: center;
     justify-content: flex-start;
     white-space: nowrap;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+.row-number {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 30px;
+    height: 30px;
+    margin-right: 10px;
+    font-weight: bold;
+    color: #666;
 }
 
 .seat {
@@ -109,30 +263,51 @@ document.addEventListener('DOMContentLoaded', () => {
     align-items: center;
     width: 40px;
     height: 40px;
-    border: 1px solid #888;
-    border-radius: 6px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
     margin: 2px;
     background: white;
-    font-weight: 500;
-    text-transform: uppercase;
-    text-align: center;
+    font-size: 16px;
+    transition: all 0.2s;
+}
+
+.seat-available {
     cursor: pointer;
-    transition: 0.2s;
 }
 
-.seat:hover {
-    background-color: #e0e7ff;
+.seat-available:hover {
+    border-color: #007bff;
+    transform: scale(1.1);
 }
 
-.seat.selected {
-    background-color: #0d6efd;
-    color: white;
-    border-color: #0d6efd;
+.seat-selected {
+    border-color: #28a745;
+    background-color: #f8fff9;
+    transform: scale(1.1);
+    cursor: pointer;
+}
+
+.seat-current {
+    border-color: #007bff;
+    background-color: #f0f8ff;
+    cursor: pointer;
+}
+
+.seat-occupied, .seat-disabled {
+    background-color: #f8f9fa;
+    border-color: #dee2e6;
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 .gap {
     display: inline-block;
-    width: 30px;
+    width: 20px;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 </style>
 {% endblock %}

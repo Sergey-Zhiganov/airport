@@ -20,12 +20,22 @@
         main {
             flex: 1;
         }
+        .header-link {
+            text-decoration: none;
+            color: inherit;
+        }
+        .header-link:hover {
+            color: inherit;
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
 
 <header class="mb-4 bg-primary text-white text-center py-3">
-    <h1>Аэропорт Подольск</h1>
+    <a href="{% url 'index' %}" class="header-link">
+        <h1 class="mb-0">Аэропорт Подольск</h1>
+    </a>
 </header>
 
 <main class="container mb-4">

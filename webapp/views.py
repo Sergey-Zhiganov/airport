@@ -1,4 +1,5 @@
 from functools import wraps
+from gc import disable
 import json
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -86,7 +87,13 @@ def permission_required(perm: str | list[str] | None = None):
     return decorator
 
 def index(request: HttpRequest):
-    return render(request, 'index.html', {'flights': []})
+    return render(request, 'index.html', 
+        {
+            'flights': Flight.objects.all(),
+            'airports': Airport.objects.all(),
+            'statuses': FlightStatus.objects.all(),
+        }
+    )
 
 @permission_required()
 def profile(request: HttpRequest):
@@ -1049,3 +1056,77 @@ def baggage_delete(request: HttpRequest, baggage_id: int):
 
     messages.success(request, "Багаж успешно удалён!")
     return redirect('baggage', passenger_id=baggage.passenger.pk)
+
+@permission_required('dbapp.view_boardingpass')
+def boarding_pass_edit(request: HttpRequest, passenger_id: int):
+    passenger = get_object_or_404(Passenger, pk=passenger_id)
+    
+    try:
+        boarding_pass = BoardingPass.objects.get(id=passenger)
+        is_edit = True
+    except BoardingPass.DoesNotExist:
+        boarding_pass = BoardingPass(id=passenger)
+        is_edit = False
+
+    flight = passenger.flight
+    airplane = flight.airplane
+    layout = airplane.layout
+    rows = airplane.rows
+    
+    occupied_seats = BoardingPass.objects.filter(
+        id__flight=flight
+    ).exclude(id=passenger).values_list('seat', flat=True)
+
+    can_add = request.user.has_perm('dbapp.add_boardingpass') # type: ignore
+    can_change = request.user.has_perm('dbapp.change_boardingpass') # type: ignore
+    can_delete = request.user.has_perm('dbapp.delete_boardingpass') # type: ignore
+    
+    if is_edit:
+        can_modify = can_change or can_delete
+        mode = 'edit'
+    else:
+        can_modify = can_add
+        mode = 'add'
+
+    form = BoardingPassForm(instance=boarding_pass)
+
+    if request.method == 'POST' and can_modify:
+        action = request.POST.get('action')
+        
+        if action == 'save' and (can_add or can_change):
+            form = BoardingPassForm(request.POST, instance=boarding_pass)
+            if form.is_valid():
+                instance = form.save()
+                
+                if is_edit:
+                    log_action(request.user, instance, CHANGE)
+                    messages.success(request, "Посадочный талон успешно обновлён!")
+                else:
+                    log_action(request.user, instance, ADDITION)
+                    messages.success(request, "Посадочный талон успешно создан!")
+                
+                return redirect('boarding_pass_edit', passenger_id=passenger_id)
+        
+        elif action == 'clear' and can_delete and is_edit and boarding_pass.seat:
+            old_seat = boarding_pass.seat
+            boarding_pass.seat = ''
+            boarding_pass.save()
+            log_action(request.user, boarding_pass, DELETION)
+            messages.success(request, f"Место {old_seat} успешно освобождено!")
+            return redirect('boarding_pass_edit', passenger_id=passenger_id)
+
+    return render(request, 'boarding_pass_form.html', {
+        'form': form,
+        'passenger': passenger,
+        'boarding_pass': boarding_pass,
+        'layout': layout,
+        'rows': rows,
+        'occupied_seats': list(occupied_seats),
+        'title': 'Посадочный талон',
+        'mode': mode,
+        'can_add': can_add,
+        'can_change': can_change,
+        'can_delete': can_delete,
+        'can_modify': can_modify,
+        'is_edit': is_edit,
+    })
