@@ -61,4 +61,11 @@ urlpatterns = [
     path('passengers/<int:passenger_id>/baggage/add', baggage_add, name='baggage_add'),
     path('passengers/<int:passenger_id>/baggage/<int:baggage_id>', baggage_edit, name='baggage_edit'),
     path('passengers/<int:passenger_id>/baggage/<int:baggage_id>', baggage_delete, name='baggage_delete'),
+
+    path('passengers/<int:passenger_id>/boarding-pass', boarding_pass_edit, name='boarding_pass_edit'),
+
+    path('backups/', backup_list, name='backup_list'),
+    path('backups/create/', create_backup, name='create_backup'),
+    path('backups/<int:backup_id>/delete/', backup_delete, name='backup_delete'),
+    path('backups/<int:backup_id>/download/', backup_download, name='backup_download'),
 ]

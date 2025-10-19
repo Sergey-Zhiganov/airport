@@ -1,10 +1,13 @@
 from functools import wraps
+from gc import disable
 import json
-from django.http import HttpRequest, JsonResponse
+import os
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 from django.contrib.auth.models import Group
 from django.db.models import Q
+from django.db import transaction
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -86,7 +89,13 @@ def permission_required(perm: str | list[str] | None = None):
     return decorator
 
 def index(request: HttpRequest):
-    return render(request, 'index.html', {'flights': []})
+    return render(request, 'index.html', 
+        {
+            'flights': Flight.objects.all(),
+            'airports': Airport.objects.all(),
+            'statuses': FlightStatus.objects.all(),
+        }
+    )
 
 @permission_required()
 def profile(request: HttpRequest):
@@ -111,6 +120,7 @@ def workers(request: HttpRequest):
         w.group_names = ", ".join(w.groups.values_list("name", flat=True)) # type: ignore
     return render(request, 'workers.html', {'workers': workers})
 
+@transaction.atomic
 @permission_required('dbapp.add_worker')
 def worker_add(request: HttpRequest):
     if request.method == 'POST':
@@ -131,6 +141,7 @@ def worker_add(request: HttpRequest):
         'title': 'Добавить сотрудника'
     })
 
+@transaction.atomic
 @permission_required('dbapp.view_worker')
 def worker_edit(request: HttpRequest, worker_id: int):
     worker = get_object_or_404(Worker, pk=worker_id)
@@ -160,6 +171,7 @@ def worker_edit(request: HttpRequest, worker_id: int):
         'title': f'Редактировать сотрудника: {worker}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_worker')
 def worker_delete(request: HttpRequest, worker_id: int):
     worker = get_object_or_404(Worker, pk=worker_id)
@@ -196,6 +208,7 @@ def check_in_desks(request: HttpRequest):
         }
     )
 
+@transaction.atomic
 @permission_required('dbapp.add_checkindesk')
 def check_in_desk_add(request: HttpRequest):
     if request.method == 'POST':
@@ -214,6 +227,7 @@ def check_in_desk_add(request: HttpRequest):
         'title': 'Добавить стойку регистрации'
     })
 
+@transaction.atomic
 @permission_required(['dbapp.view_checkindesk', 'dbapp.view_own_checkindesk'])
 def check_in_desk_edit(request: HttpRequest, check_in_desk_id: int):
     check_in_desk = get_object_or_404(CheckInDesk, pk=check_in_desk_id)
@@ -265,6 +279,7 @@ def check_in_desk_edit(request: HttpRequest, check_in_desk_id: int):
         'title': f'Редактировать стойку регистрации: {check_in_desk}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_checkindesk')
 def check_in_desk_delete(request: HttpRequest, check_in_desk_id: int):
     check_in_desk = get_object_or_404(CheckInDesk, pk=check_in_desk_id)
@@ -297,6 +312,7 @@ def gates(request: HttpRequest):
         }
     )
 
+@transaction.atomic
 @permission_required('dbapp.add_gate')
 def gate_add(request: HttpRequest):
     if request.method == 'POST':
@@ -315,6 +331,7 @@ def gate_add(request: HttpRequest):
         'title': 'Добавить посадочный выход'
     })
 
+@transaction.atomic
 @permission_required(['dbapp.view_gate', 'dbapp.view_own_gate'])
 def gate_edit(request: HttpRequest, gate_id: int):
     gate = get_object_or_404(Gate, pk=gate_id)
@@ -366,6 +383,7 @@ def gate_edit(request: HttpRequest, gate_id: int):
         'title': f'Редактировать посадочный выход: {gate}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_gate')
 def gate_delete(request: HttpRequest, gate_id: int):
     gate = get_object_or_404(Gate, pk=gate_id)
@@ -386,6 +404,7 @@ def gate_delete(request: HttpRequest, gate_id: int):
 def airlines(request: HttpRequest):
     return render(request, 'airlines.html', {'airlines': Airline.objects.all()})
 
+@transaction.atomic
 @permission_required('dbapp.add_airline')
 def airline_add(request: HttpRequest):
     if request.method == 'POST':
@@ -404,6 +423,7 @@ def airline_add(request: HttpRequest):
         'title': 'Добавить авиакомпанию'
     })
 
+@transaction.atomic
 @permission_required('dbapp.change_airline')
 def airline_edit(request: HttpRequest, airline_id: int):
     airline = get_object_or_404(Airline, pk=airline_id)
@@ -433,6 +453,7 @@ def airline_edit(request: HttpRequest, airline_id: int):
         'title': f'Редактировать авиакомпанию: {airline}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_airline')
 def airline_delete(request: HttpRequest, airline_id: int):
     airline = get_object_or_404(Airline, pk=airline_id)
@@ -453,6 +474,7 @@ def airline_delete(request: HttpRequest, airline_id: int):
 def airplanes(request: HttpRequest):
     return render(request, 'airplanes.html', {'airplanes': Airplane.objects.all()})
 
+@transaction.atomic
 @permission_required('dbapp.add_airplane')
 def airplane_add(request: HttpRequest):
     if request.method == 'POST':
@@ -471,6 +493,7 @@ def airplane_add(request: HttpRequest):
         'title': 'Добавить самолёт'
     })
 
+@transaction.atomic
 @permission_required('dbapp.change_airplane')
 def airplane_edit(request: HttpRequest, airplane_id: int):
     airplane = get_object_or_404(Airplane, pk=airplane_id)
@@ -500,6 +523,7 @@ def airplane_edit(request: HttpRequest, airplane_id: int):
         'title': f'Редактировать самолёт: {airplane}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_airplane')
 def airplane_delete(request: HttpRequest, airplane_id: int):
     airplane = get_object_or_404(Airplane, pk=airplane_id)
@@ -520,6 +544,7 @@ def airplane_delete(request: HttpRequest, airplane_id: int):
 def airports(request: HttpRequest):
     return render(request, 'airports.html', {'airports': Airport.objects.all()})
 
+@transaction.atomic
 @permission_required('dbapp.add_airport')
 def airport_add(request: HttpRequest):
     if request.method == 'POST':
@@ -538,6 +563,7 @@ def airport_add(request: HttpRequest):
         'title': 'Добавить аэропорт'
     })
 
+@transaction.atomic
 @permission_required('dbapp.change_airport')
 def airport_edit(request: HttpRequest, airport_id: int):
     airport = get_object_or_404(Airport, pk=airport_id)
@@ -567,6 +593,7 @@ def airport_edit(request: HttpRequest, airport_id: int):
         'title': f'Редактировать аэропорт: {airport}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_airport')
 def airport_delete(request: HttpRequest, airport_id: int):
     airport = get_object_or_404(Airport, pk=airport_id)
@@ -587,6 +614,7 @@ def airport_delete(request: HttpRequest, airport_id: int):
 def flights(request: HttpRequest):
     return render(request, 'flights.html', {'flights': Flight.objects.all()})
 
+@transaction.atomic
 @permission_required('dbapp.add_flight')
 def flight_add(request: HttpRequest):
     if request.method == 'POST':
@@ -614,6 +642,7 @@ def flight_add(request: HttpRequest):
         'hide_status': True
     })
 
+@transaction.atomic
 @permission_required(['dbapp.view_flight'])
 def flight_edit(request: HttpRequest, flight_id: int):
     flight = get_object_or_404(Flight, pk=flight_id)
@@ -659,6 +688,7 @@ def flight_edit(request: HttpRequest, flight_id: int):
         'hide_status': False
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_flight')
 def flight_delete(request: HttpRequest, flight_id: int):
     flight = get_object_or_404(Flight, pk=flight_id)
@@ -717,6 +747,7 @@ def check_in_desk_flights(request: HttpRequest, check_in_desk_id: int):
         'assigned_flights': assigned_flights
     })
 
+@transaction.atomic
 @permission_required(['dbapp.change_checkindeskflight', 'dbapp.change_is_active_checkindeskflight'])
 def check_in_desk_flight_toggle(request: HttpRequest, cf_id: int):
     cf = get_object_or_404(CheckInDeskFlight, pk=cf_id)
@@ -797,6 +828,7 @@ def gate_flights(request: HttpRequest, gate_id: int):
         'assigned_flights': assigned_flights
     })
 
+@transaction.atomic
 @permission_required(['dbapp.change_gateflight', 'dbapp.change_is_active_gateflight'])
 def gate_flight_toggle(request: HttpRequest, gf_id: int):
     gf = get_object_or_404(GateFlight, pk=gf_id)
@@ -845,6 +877,7 @@ def gate_flight_delete(request: HttpRequest, gf_id: int):
     messages.success(request, "Рейс удалён с посадочного выхода")
     return redirect('gate_flights', gate_id=gate_id)
 
+@transaction.atomic
 @permission_required('dbapp.view_flighttime')
 def flight_time_edit(request: HttpRequest, flight_id: int):
     flight = get_object_or_404(Flight, pk=flight_id)
@@ -889,6 +922,7 @@ def flight_time_edit(request: HttpRequest, flight_id: int):
 def passengers(request: HttpRequest):
     return render(request, 'passengers.html', {'passengers': Passenger.objects.all()})
 
+@transaction.atomic
 @permission_required('dbapp.add_passenger')
 def passenger_add(request: HttpRequest):
     if request.method == 'POST':
@@ -910,6 +944,7 @@ def passenger_add(request: HttpRequest):
         'title': 'Добавить пассажира'
     })
 
+@transaction.atomic
 @permission_required('dbapp.change_passenger')
 def passenger_edit(request: HttpRequest, passenger_id: int):
     passenger = get_object_or_404(Passenger, pk=passenger_id)
@@ -960,6 +995,7 @@ def passenger_edit(request: HttpRequest, passenger_id: int):
         'title': f'Редактировать пассажира: {passenger}'
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_passenger')
 def passenger_delete(request: HttpRequest, passenger_id: int):
     passenger = get_object_or_404(Passenger, pk=passenger_id)
@@ -986,6 +1022,7 @@ def baggage(request: HttpRequest, passenger_id: int):
         'baggage': Baggage.objects.filter(passenger=passenger)
     })
 
+@transaction.atomic
 @permission_required('dbapp.add_baggage')
 def baggage_add(request: HttpRequest, passenger_id: int):
     passenger = get_object_or_404(Passenger, pk=passenger_id)
@@ -1009,6 +1046,7 @@ def baggage_add(request: HttpRequest, passenger_id: int):
         'passenger': passenger
     })
 
+@transaction.atomic
 @permission_required('dbapp.change_baggage')
 def baggage_edit(request: HttpRequest, passenger_id: int, baggage_id: int):
     passenger = get_object_or_404(Passenger, pk=passenger_id)
@@ -1040,6 +1078,7 @@ def baggage_edit(request: HttpRequest, passenger_id: int, baggage_id: int):
         'passenger': passenger
     })
 
+@transaction.atomic
 @permission_required('dbapp.delete_baggage')
 def baggage_delete(request: HttpRequest, baggage_id: int):
     baggage = get_object_or_404(Baggage, pk=baggage_id)
@@ -1049,3 +1088,122 @@ def baggage_delete(request: HttpRequest, baggage_id: int):
 
     messages.success(request, "Багаж успешно удалён!")
     return redirect('baggage', passenger_id=baggage.passenger.pk)
+
+@transaction.atomic
+@permission_required('dbapp.view_boardingpass')
+def boarding_pass_edit(request: HttpRequest, passenger_id: int):
+    passenger = get_object_or_404(Passenger, pk=passenger_id)
+    
+    try:
+        boarding_pass = BoardingPass.objects.get(id=passenger)
+        is_edit = True
+    except BoardingPass.DoesNotExist:
+        boarding_pass = BoardingPass(id=passenger)
+        is_edit = False
+
+    flight: Flight = passenger.flight
+    airplane: Airplane = flight.airplane
+    layout = airplane.layout
+    rows = airplane.rows
+    
+    occupied_seats = BoardingPass.objects.filter(
+        id__flight=flight
+    ).exclude(id=passenger).values_list('seat', flat=True)
+
+    can_add = request.user.has_perm('dbapp.add_boardingpass') # type: ignore
+    can_change = request.user.has_perm('dbapp.change_boardingpass') # type: ignore
+    can_delete = request.user.has_perm('dbapp.delete_boardingpass') # type: ignore
+    
+    if is_edit:
+        can_modify = can_change or can_delete
+        mode = 'edit'
+    else:
+        can_modify = can_add
+        mode = 'add'
+
+    form = BoardingPassForm(instance=boarding_pass)
+
+    if request.method == 'POST' and can_modify:
+        action = request.POST.get('action')
+        
+        if action == 'save' and (can_add or can_change):
+            form = BoardingPassForm(request.POST, instance=boarding_pass)
+            if form.is_valid():
+                instance = form.save()
+                
+                if is_edit:
+                    log_action(request.user, instance, CHANGE)
+                    messages.success(request, "Посадочный талон успешно обновлён!")
+                else:
+                    log_action(request.user, instance, ADDITION)
+                    messages.success(request, "Посадочный талон успешно создан!")
+                
+                return redirect('boarding_pass_edit', passenger_id=passenger_id)
+        
+        elif action == 'clear' and can_delete and is_edit and boarding_pass.seat:
+            old_seat = boarding_pass.seat
+            boarding_pass.seat = ''
+            boarding_pass.save()
+            log_action(request.user, boarding_pass, DELETION)
+            messages.success(request, f"Место {old_seat} успешно освобождено!")
+            return redirect('boarding_pass_edit', passenger_id=passenger_id)
+
+    return render(request, 'boarding_pass_form.html', {
+        'form': form,
+        'passenger': passenger,
+        'boarding_pass': boarding_pass,
+        'layout': layout,
+        'rows': rows,
+        'occupied_seats': list(occupied_seats),
+        'title': 'Посадочный талон',
+        'mode': mode,
+        'can_add': can_add,
+        'can_change': can_change,
+        'can_delete': can_delete,
+        'can_modify': can_modify,
+        'is_edit': is_edit,
+    })
+
+@permission_required('dbapp.view_backuplog') 
+def backup_list(request: HttpRequest):
+    backups = BackupLog.objects.all()
+    return render(request, 'backup_list.html', {'backups': backups})
+
+@permission_required('dbapp.add_backuplog')
+def create_backup(request: HttpRequest):
+    try:
+        from django.core.management import call_command
+        call_command('backup_database', '--type', 'manual')
+        messages.success(request, "Резервная копия успешно создана")
+    except Exception as e:
+        messages.error(request, f"Ошибка создания бэкапа: {str(e)}")
+    
+    return redirect('backup_list')
+
+@permission_required('dbapp.delete_backuplog')
+def backup_delete(request: HttpRequest, backup_id: int):
+    backup = get_object_or_404(BackupLog, pk=backup_id)
+    
+    try:
+        if os.path.exists(backup.file_path):
+            os.remove(backup.file_path)
+        
+        backup.delete()
+        messages.success(request, "Резервная копия удалена")
+    except Exception as e:
+        messages.error(request, f"Ошибка удаления: {str(e)}")
+    
+    return redirect('backup_list')
+
+@permission_required('dbapp.view_backuplog')
+def backup_download(request: HttpRequest, backup_id: int):
+    backup = get_object_or_404(BackupLog, pk=backup_id)
+    
+    if os.path.exists(backup.file_path):
+        with open(backup.file_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type='application/octet-stream')
+            response['Content-Disposition'] = f'attachment; filename="{backup.filename}"'
+            return response
+    else:
+        messages.error(request, "Файл бэкапа не найден")
+        return redirect('backup_list')

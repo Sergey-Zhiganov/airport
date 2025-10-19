@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <a href="{% url 'profile' %}" class="btn btn-secondary mb-3">&larr; Назад</a>
+
+    <h2>Резервное копирование</h2>
+
+    {% if perms.dbapp.add_backuplog %}
+        <a href="{% url 'create_backup' %}" class="btn btn-success mb-3">Создать резервную копию</a>
+    {% endif %}
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="search_filename" class="form-label">Поиск по имени файла</label>
+                    <input type="text" class="form-control" id="search_filename" 
+                           placeholder="Введите имя файла">
+                </div>
+                <div class="col-md-4">
+                    <label for="filter_type" class="form-label">Тип бэкапа</label>
+                    <select class="form-select" id="filter_type">
+                        <option value="">Все типы</option>
+                        <option value="daily">Ежедневный</option>
+                        <option value="weekly">Еженедельный</option>
+                        <option value="monthly">Ежемесячный</option>
+                        <option value="manual">Ручной</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="filter_status" class="form-label">Статус</label>
+                    <select class="form-select" id="filter_status">
+                        <option value="">Все статусы</option>
+                        <option value="success">Успешно</option>
+                        <option value="error">Ошибка</option>
+                        <option value="running">Выполняется</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3" id="backups-container">
+        {% for backup in backups %}
+        <div class="col backup-card" 
+             data-type="{{ backup.backup_type }}" 
+             data-status="{{ backup.status }}"
+             data-filename="{{ backup.filename|lower }}">
+            <div class="card h-100 p-3 d-flex flex-column position-relative">
+                <!-- Основной контент карточки -->
+                <div class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center">
+                    <i class="bi bi-cloud-arrow-down mb-2" style="font-size: 2.5rem; 
+                        {% if backup.status == 'success' %}color: #198754;
+                        {% elif backup.status == 'error' %}color: #dc3545;
+                        {% else %}color: #ffc107;{% endif %}">
+                    </i>
+                    <div class="card-title fw-bold backup-filename mb-1">{{ backup.filename }}</div>
+                    <div class="text-muted backup-type mb-2">{{ backup.get_backup_type_display }}</div>
+                    
+                    <div class="small w-100">
+                        <div class="backup-status {% if backup.status == 'success' %}text-success{% elif backup.status == 'error' %}text-danger{% else %}text-warning{% endif %} mb-1">
+                            <i class="bi 
+                                {% if backup.status == 'success' %}bi-check-circle-fill
+                                {% elif backup.status == 'error' %}bi-x-circle-fill
+                                {% else %}bi-hourglass-split{% endif %}">
+                            </i>
+                            Статус: {{ backup.get_status_display }}
+                        </div>
+                        <div class="backup-date text-muted mb-1">
+                            <i class="bi bi-calendar"></i>
+                            {{ backup.created_at|date:"d.m.Y H:i" }}
+                        </div>
+                        {% if backup.file_size %}
+                        <div class="backup-size text-muted">
+                            <i class="bi bi-hdd"></i>
+                            {{ backup.file_size|filesizeformat }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Блок ошибки - отдельно внизу -->
+                {% if backup.error_message %}
+                <div class="mt-2 pt-2 border-top">
+                    <small class="text-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        {{ backup.error_message|truncatechars:80 }}
+                    </small>
+                </div>
+                {% endif %}
+
+                <!-- Кнопки действий -->
+                <div class="position-absolute top-0 end-0 m-2 d-flex gap-1">
+                    {% if backup.status == 'success' and perms.dbapp.view_backuplog %}
+                    <a href="{% url 'backup_download' backup.id %}" class="btn btn-sm btn-primary" title="Скачать">
+                        <i class="bi bi-download"></i>
+                    </a>
+                    {% endif %}
+
+                    {% if perms.dbapp.delete_backuplog %}
+                    <form method="post" action="{% url 'backup_delete' backup.id %}" 
+                          onsubmit="return confirm('Вы уверены, что хотите удалить резервную копию {{ backup.filename }}?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-danger" title="Удалить">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-cloud-slash" style="font-size: 2rem;"></i><br>
+                    Резервных копий пока нет.
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+function filterBackups() {
+    const searchFilename = document.getElementById('search_filename').value.toLowerCase().trim();
+    const filterType = document.getElementById('filter_type').value;
+    const filterStatus = document.getElementById('filter_status').value;
+    const backupCards = document.querySelectorAll('.backup-card');
+    
+    backupCards.forEach(card => {
+        const filename = card.getAttribute('data-filename');
+        const type = card.getAttribute('data-type');
+        const status = card.getAttribute('data-status');
+        
+        let matchesFilename = searchFilename === '' || filename.includes(searchFilename);
+        let matchesType = filterType === '' || type === filterType;
+        let matchesStatus = filterStatus === '' || status === filterStatus;
+        
+        if (matchesFilename && matchesType && matchesStatus) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+document.getElementById('search_filename').addEventListener('input', filterBackups);
+document.getElementById('filter_type').addEventListener('change', filterBackups);
+document.getElementById('filter_status').addEventListener('change', filterBackups);
+
+// Инициализация фильтрации при загрузке
+document.addEventListener('DOMContentLoaded', filterBackups);
+</script>
+
+<style>
+.backup-card {
+    transition: all 0.3s ease;
+}
+
+.backup-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.position-absolute .btn-sm {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+/* Гарантируем, что карточка будет достаточной высоты */
+.backup-card .card {
+    min-height: 220px;
+}
+
+/* Обеспечиваем правильное расположение контента */
+.flex-grow-1 {
+    flex: 1 1 auto;
+}
+</style>
+{% endblock %}

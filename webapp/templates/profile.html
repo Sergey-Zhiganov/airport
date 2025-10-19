@@ -113,6 +113,15 @@
             </div>
         </a>
         {% endif %}
+
+        {% if perms.dbapp.view_backuplog %}
+        <a href="{% url 'backup_list' %}" class="card-square text-center text-decoration-none text-dark m-2">
+            <div class="card p-3 d-flex flex-column align-items-center justify-content-center">
+                <i class="bi bi-cloud-arrow-down" style="font-size: 2.5rem; color: #0d6efd;"></i>
+                <div class="card-title mt-2 fw-bold">Резервное копирование</div>
+            </div>
+        </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

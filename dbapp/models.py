@@ -14,6 +14,34 @@ def validate_phone(value: str):
             "Телефон должен содержать 11 цифр. Пример: 79254717170"
         )
 
+class BackupLog(models.Model):
+    BACKUP_TYPES = [
+        ('daily', 'Ежедневный'),
+        ('manual', 'Ручной'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('success', 'Успешно'),
+        ('error', 'Ошибка'),
+        ('running', 'Выполняется'),
+    ]
+    
+    backup_type = models.CharField('Тип бэкапа', max_length=10, choices=BACKUP_TYPES)
+    filename = models.CharField('Имя файла', max_length=255)
+    file_path = models.CharField('Путь к файлу', max_length=500)
+    file_size = models.BigIntegerField('Размер файла', null=True, blank=True)
+    status = models.CharField('Статус', max_length=10, choices=STATUS_CHOICES)
+    error_message = models.TextField('Сообщение об ошибке', blank=True)
+    created_at = models.DateTimeField('Дата создания', auto_now_add=True)
+    
+    class Meta:
+        verbose_name = 'Лог резервного копирования'
+        verbose_name_plural = 'Логи резервного копирования'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.get_backup_type_display()} - {self.created_at.strftime('%d.%m.%Y %H:%M')}" # type: ignore
+
 class Worker(AbstractUser):
     middle_name = models.CharField(
         "Отчество",
