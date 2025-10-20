@@ -25,7 +25,7 @@
         <div class="col-md-3">
             <div class="card stats-card">
                 <div class="card-body text-center">
-                    <h3 class="stats-number">{{ flight_total_stats.avg_delay|floatformat:1|default:0 }}</h3>
+                    <h3 class="stats-number">{{ flight_total_stats.avg_delay|default:0 }}</h3>
                     <p class="stats-label">Средняя задержка (мин)</p>
                 </div>
             </div>
@@ -33,8 +33,43 @@
         <div class="col-md-3">
             <div class="card stats-card">
                 <div class="card-body text-center">
-                    <h3 class="stats-number">{{ checkin_stats.avg_efficiency|floatformat:1|default:0 }}%</h3>
+                    <h3 class="stats-number">{{ checkin_stats.avg_efficiency|default:0 }}%</h3>
                     <p class="stats-label">Эффективность регистрации</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ passenger_stats.check_in_rate|default:0 }}%</h3>
+                    <p class="stats-label">Прошли регистрацию</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ passenger_stats.boarding_rate|default:0 }}%</h3>
+                    <p class="stats-label">Прошли посадку</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ gate_stats.boarding_efficiency|default:0 }}%</h3>
+                    <p class="stats-label">Эффективность посадки</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ passenger_stats.avg_baggage_per_passenger|default:0 }}</h3>
+                    <p class="stats-label">Багажа на пассажира</p>
                 </div>
             </div>
         </div>
@@ -46,68 +81,212 @@
                 <div class="card-header">
                     <h5 class="mb-0">Статусы рейсов</h5>
                 </div>
-                <div class="card-body">
-                    <canvas id="flightStatusChart" width="400" height="200"></canvas>
+                <div class="card-body" style="height: 300px;">
+                    <canvas id="flightStatusChart"></canvas>
                 </div>
             </div>
         </div>
+
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">Пассажиры по направлениям</h5>
                 </div>
-                <div class="card-body">
-                    <canvas id="passengersByDestinationChart" width="400" height="200"></canvas>
+                <div class="card-body" style="height: 300px;">
+                    <canvas id="passengersByDestinationChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Рейсы по авиакомпаниям</h5>
+                </div>
+                <div class="card-body" style="height: 250px;">
+                    <canvas id="flightsByAirlineChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+.stats-card {
+    transition: transform 0.2s;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    margin-bottom: 1rem; /* Добавим отступ между карточками */
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.stats-number {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: #2e59d9;
+}
+
+.stats-label {
+    color: #6c757d;
+    margin-bottom: 0;
+    font-weight: 500;
+}
+
+.card {
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: 1px solid #e3e6f0;
+    margin-bottom: 1rem; /* Отступ между карточками */
+}
+
+.card-header {
+    background-color: #f8f9fc;
+    border-bottom: 1px solid #e3e6f0;
+    font-weight: 600;
+}
+
+.card-body canvas {
+    max-width: 100%;
+    height: auto;
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    {% if flight_total_stats %}
-    const flightStatusData = {
-        'completed': {{ flight_total_stats.completed_flights|default:0 }},
-        'scheduled': {{ flight_total_stats.scheduled_flights|default:0 }},
-        'cancelled': {{ flight_total_stats.cancelled_flights|default:0 }}
-    };
-    
-    new Chart(document.getElementById('flightStatusChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Выполнено', 'Запланировано', 'Отменено'],
-            datasets: [{
-                data: [
-                    flightStatusData.completed,
-                    flightStatusData.scheduled, 
-                    flightStatusData.cancelled
-                ],
-                backgroundColor: ['#28a745', '#17a2b8', '#dc3545']
-            }]
-        }
-    });
-    {% endif %}
+    const flightStatusCtx = document.getElementById('flightStatusChart');
+    if (flightStatusCtx) {
+        const completed = {{ flight_total_stats.completed_flights|default:0 }};
+        const scheduled = {{ flight_total_stats.scheduled_flights|default:0 }};
+        const cancelled = {{ flight_total_stats.cancelled_flights|default:0 }};
+        const other = {{ flight_total_stats.other_flights|default:0 }};
 
-    {% if passengers_by_destination %}
-    const destinations = [{% for dest in passengers_by_destination %}'{{ dest.arrival_airport }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
-    const passengerCounts = [{% for dest in passengers_by_destination %}{{ dest.passenger_count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
-    
-    new Chart(document.getElementById('passengersByDestinationChart'), {
-        type: 'bar',
-        data: {
-            labels: destinations,
-            datasets: [{
-                label: 'Пассажиры',
-                data: passengerCounts,
-                backgroundColor: '#007bff'
-            }]
+        new Chart(flightStatusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Выполнено', 'Запланировано', 'Отменено', 'Другие'],
+                datasets: [{
+                    data: [completed, scheduled, cancelled, other],
+                    backgroundColor: ['#28a745', '#17a2b8', '#dc3545', '#6c757d'],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 10,
+                            usePointStyle: true,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    const passengersCtx = document.getElementById('passengersByDestinationChart');
+    if (passengersCtx) {
+        {% if passengers_by_destination %}
+        const destinations = [{% for dest in passengers_by_destination %}'{{ dest.arrival_airport|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const passengerCounts = [{% for dest in passengers_by_destination %}{{ dest.passenger_count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        {% else %}
+        const destinations = [];
+        const passengerCounts = [];
+        {% endif %}
+        
+        if (destinations.length === 0) {
+            destinations.push('Нет данных');
+            passengerCounts.push(1);
         }
-    });
-    {% endif %}
+        
+        new Chart(passengersCtx, {
+            type: 'bar',
+            data: {
+                labels: destinations,
+                datasets: [{
+                    label: 'Количество пассажиров',
+                    data: passengerCounts,
+                    backgroundColor: '#007bff',
+                    borderColor: '#0056b3',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    const airlinesCtx = document.getElementById('flightsByAirlineChart');
+    if (airlinesCtx) {
+        {% if flights_by_airline %}
+        const airlines = [{% for airline in flights_by_airline %}'{{ airline.airline_name|escapejs }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+        const flightCounts = [{% for airline in flights_by_airline %}{{ airline.count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+        {% else %}
+        const airlines = [];
+        const flightCounts = [];
+        {% endif %}
+        
+        if (airlines.length === 0) {
+            airlines.push('Нет данных');
+            flightCounts.push(1);
+        }
+        
+        new Chart(airlinesCtx, {
+            type: 'bar',
+            data: {
+                labels: airlines,
+                datasets: [{
+                    label: 'Количество рейсов',
+                    data: flightCounts,
+                    backgroundColor: '#28a745',
+                    borderColor: '#1e7e34',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

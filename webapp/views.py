@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 from django.contrib.auth.models import Group
 from django.contrib.auth.hashers import make_password
-from django.db.models import Count, Avg, Sum, Max, Q
+from django.db.models import Count, Avg, Sum, Q
 from django.db import transaction
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.contenttypes.models import ContentType
@@ -1070,6 +1070,8 @@ def flight_edit(request: HttpRequest, flight_id: int):
         if form.is_valid():
             updated_instance: Flight = form.save(commit=False)
 
+            print(updated_instance.__dict__)
+
             if not can_change_all:
                 if not can_change_flight_status:
                     updated_instance.flight_status = flight.flight_status
@@ -1090,8 +1092,6 @@ def flight_edit(request: HttpRequest, flight_id: int):
         airplane.pk: airplane.airline.IATA_code
         for airplane in Airplane.objects.select_related('airline').all()
     }
-
-    print(flight.__dict__)
 
     return render(request, 'flight_form.html', {
         'form': form,
@@ -1451,15 +1451,21 @@ def flight_time_edit(request: HttpRequest, flight_id: int):
         
         form = FlightTimeForm(request.POST, instance=flight_time)
         if form.is_valid():
-            if flight.departure_airport.pk != 1:
+            if flight.departure_airport.pk != 1 and 'departure_airport' in form.fields.keys():
                 form.fields.pop('departure_airport')
-            if flight.arrival_airport.pk != 1:
+            if flight.arrival_airport.pk != 1 and 'arrival_airport' in form.fields.keys():
                 form.fields.pop('arrival_airport')
 
             form.save()
             log_action(request.user, flight_time, CHANGE, change_message=f"Изменены временные отметки рейса {flight}")
             messages.success(request, "Временные отметки успешно обновлены!")
             return redirect('flights')
+        else:
+            print(form.errors)
+            if flight.departure_airport.pk != 1:
+                form.fields.pop('actual_departure', None)
+            if flight.arrival_airport.pk != 1:
+                form.fields.pop('actual_arrival', None)
     else:
         form = FlightTimeForm(instance=flight_time)
         if not can_change:
@@ -1878,6 +1884,7 @@ def backup_download(request: HttpRequest, backup_id: int):
 def analytics_dashboard(request: HttpRequest):
     context = {}
     
+    
     if (request.user.has_perm('dbapp.view_flight') and # type: ignore
         request.user.has_perm('dbapp.view_airline')): # type: ignore
         
@@ -1892,12 +1899,15 @@ def analytics_dashboard(request: HttpRequest):
             'completed_flights': AnalyticsFlight.objects.filter(flight_category='completed').count(),
             'scheduled_flights': AnalyticsFlight.objects.filter(flight_category='scheduled').count(),
             'cancelled_flights': AnalyticsFlight.objects.filter(flight_category='cancelled').count(),
+            'other_flights': AnalyticsFlight.objects.filter(flight_category='other').count(),
         }
         
-        avg_delay = AnalyticsFlight.objects.aggregate(
+        avg_delay = AnalyticsFlight.objects.filter(
+            departure_delay_minutes__isnull=False
+        ).aggregate(
             avg_delay=Avg('departure_delay_minutes')
         )['avg_delay']
-        total_stats['avg_delay'] = avg_delay if avg_delay else 0
+        total_stats['avg_delay'] = round(avg_delay, 1) if avg_delay else 0
         
         context['flight_total_stats'] = total_stats
         
@@ -1914,6 +1924,18 @@ def analytics_dashboard(request: HttpRequest):
             boarded=Count('id', filter=Q(boarding_passed=True)),
             removed=Count('id', filter=Q(is_removed=True)),
         )
+        
+        if passenger_stats['total_passengers']:
+            passenger_stats['check_in_rate'] = round(
+                passenger_stats['checked_in'] / passenger_stats['total_passengers'] * 100, 1
+            )
+            passenger_stats['boarding_rate'] = round(
+                passenger_stats['boarded'] / passenger_stats['total_passengers'] * 100, 1
+            )
+        else:
+            passenger_stats['check_in_rate'] = 0
+            passenger_stats['boarding_rate'] = 0
+            
         context['passenger_stats'] = passenger_stats
         
         passengers_by_destination = AnalyticsPassenger.objects.values('arrival_airport').annotate(
@@ -1932,23 +1954,53 @@ def analytics_dashboard(request: HttpRequest):
         )
         
         if checkin_stats['total_passengers_processed']:
-            checkin_stats['avg_efficiency'] = (
+            checkin_stats['avg_efficiency'] = round(
                 checkin_stats['total_passengers_checked_in'] / 
-                checkin_stats['total_passengers_processed'] * 100
+                checkin_stats['total_passengers_processed'] * 100, 1
             )
         else:
             checkin_stats['avg_efficiency'] = 0
+            
+        gate_stats = AnalyticsGate.objects.aggregate(
+            total_gates=Count('id'),
+            active_gates=Count('id', filter=Q(is_active=True)),
+            total_passengers_processed=Sum('passengers_processed'),
+            total_passengers_boarded=Sum('passengers_boarded'),
+        )
         
+        if gate_stats['total_passengers_processed']:
+            gate_stats['boarding_efficiency'] = round(
+                gate_stats['total_passengers_boarded'] / 
+                gate_stats['total_passengers_processed'] * 100, 1
+            )
+        else:
+            gate_stats['boarding_efficiency'] = 0
+            
         context['checkin_stats'] = checkin_stats
+        context['gate_stats'] = gate_stats
     
     if (request.user.has_perm('dbapp.view_passenger') and # type: ignore
         request.user.has_perm('dbapp.view_baggage')): # type: ignore
         
-        baggage_stats = AnalyticsPassenger.objects.aggregate(
-            avg_baggage_weight=Avg('total_baggage_weight'),
-            total_baggage_count=Sum('baggage_count')
+        baggage_stats = AnalyticsBaggage.objects.aggregate(
+            total_flights_with_baggage=Count('flight_id'),
+            total_baggage_items=Sum('total_baggage_items'),
+            total_baggage_weight=Sum('total_baggage_weight'),
+            avg_baggage_weight=Avg('avg_baggage_weight'),
         )
-        if 'passenger_stats' in context:
-            context['passenger_stats'].update(baggage_stats)
+        
+        if 'passenger_stats' in context and baggage_stats['total_baggage_items']:
+            context['passenger_stats'].update({
+                'avg_baggage_per_passenger': round(
+                    baggage_stats['total_baggage_items'] / context['passenger_stats']['total_passengers'], 1
+                ) if context['passenger_stats']['total_passengers'] else 0,
+                'avg_baggage_weight': round(baggage_stats['avg_baggage_weight'] or 0, 1)
+            })
+        
+        context['baggage_stats'] = baggage_stats
+    
+    if request.user.has_perm('dbapp.view_flight'): # type: ignore
+        time_efficiency = AnalyticsTimeEfficiency.objects.all().order_by('hour_of_day')[:24]
+        context['time_efficiency'] = list(time_efficiency)
     
     return render(request, 'dashboard.html', context)

@@ -3,6 +3,7 @@ import io
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.forms import ValidationError
+from django.utils import timezone
 
 from dbapp.models import Airline, Airplane, Airport, Baggage, BoardingPass, CheckInDesk, CheckInDeskFlight, Flight, FlightTime, Gate, GateFlight, Passenger, Worker
 
@@ -185,6 +186,14 @@ class FlightForm(forms.ModelForm):
         if instance and instance.flight_status_id not in allowed_statuses:
             allowed_statuses.append(instance.flight_status_id)
 
+        if self.instance and self.instance.planned_departure:
+            local_departure = timezone.localtime(self.instance.planned_departure)
+            self.initial['planned_departure'] = local_departure.strftime('%Y-%m-%dT%H:%M')
+        
+        if self.instance and self.instance.planned_arrival:
+            local_arrival = timezone.localtime(self.instance.planned_arrival)
+            self.initial['planned_arrival'] = local_arrival.strftime('%Y-%m-%dT%H:%M')
+
         self.fields['flight_status'].queryset = (  # type: ignore
             self.fields['flight_status'].queryset.filter(pk__in=allowed_statuses) # type: ignore
         )
@@ -274,6 +283,17 @@ class FlightTimeForm(forms.ModelForm):
             )
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.instance and self.instance.actual_departure:
+            local_departure = timezone.localtime(self.instance.actual_departure)
+            self.initial['actual_departure'] = local_departure.strftime('%Y-%m-%dT%H:%M')
+        
+        if self.instance and self.instance.actual_arrival:
+            local_arrival = timezone.localtime(self.instance.actual_arrival)
+            self.initial['actual_arrival'] = local_arrival.strftime('%Y-%m-%dT%H:%M')
+
 class PassengerForm(forms.ModelForm):
     class Meta:
         model = Passenger
@@ -348,8 +368,6 @@ class BaseImportForm(forms.Form):
         
         csv_file.seek(0)
         return csv_file
-
-
 
 class WorkerImportForm(BaseImportForm):    
     def clean_csv_file(self): # type: ignore

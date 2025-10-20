@@ -41,7 +41,15 @@
                 <a href="{% url 'flight_edit' flight.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-calendar-event" style="font-size: 2.5rem; color: #0d6efd;"></i>
                     <div class="card-title mt-2 fw-bold text-center flight-number">{{ flight }}</div>
-
+                    
+                    <div class="text-primary small text-center flight-departure mt-1">
+                        {% if flight.planned_departure %}
+                            {{ flight.planned_departure|date:"d.m.Y H:i" }}
+                        {% else %}
+                            {{ flight.planned_arrival|date:"d.m.Y H:i" }}
+                        {% endif %}
+                    </div>
+                    
                     <div class="text-muted small text-center flight-status">
                         {{ flight.flight_status }}
                     </div>

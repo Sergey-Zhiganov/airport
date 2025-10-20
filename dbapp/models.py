@@ -397,28 +397,34 @@ class FlightTime(models.Model):
     actual_departure = models.DateTimeField(
         'Фактическое время вылета',
         null=True,
+        blank=True,
         help_text='Введите фактическое время вылета рейса (если вылет из данного аэропорта)'
     )
     actual_arrival = models.DateTimeField(
         'Фактическое время прибытия',
         null=True,
+        blank=True,
         help_text='Введите фактическое время прибытия рейса (если вылет из другого аэропорта)'
     )
     check_in_open_time = models.DateTimeField(
         'Время начала регистрации',
-        null=True
+        null=True,
+        blank=True
     ) # readonly
     check_in_close_time = models.DateTimeField(
         'Время окончания регистрации',
-        null=True
+        null=True,
+        blank=True
     ) # readonly
     boarding_open_time = models.DateTimeField(
         'Время начала посадки',
-        null=True
+        null=True,
+        blank=True
     ) # readonly
     boarding_close_time = models.DateTimeField(
         'Время окончания посадки',
-        null=True
+        null=True,
+        blank=True
     ) # readonly
 
     class Meta:
@@ -536,7 +542,7 @@ class BoardingPass(models.Model):
         verbose_name_plural = 'Посадочные талоны'
 
 class AnalyticsFlight(models.Model):
-    id = models.IntegerField(primary_key=True)
+    id = models.CharField(primary_key=True, max_length=50)
     number = models.IntegerField()
     airline_name = models.CharField(max_length=255)
     planned_departure = models.DateTimeField()
@@ -629,12 +635,12 @@ class AnalyticsTimeEfficiency(models.Model):
         db_table = 'analytics_time_efficiency'
 
 @receiver(pre_save, sender='dbapp.Worker')
-def deactivate_worker(sender, instance, **kwargs):
+def deactivate_worker(sender, instance: Worker, **kwargs):
     if instance.pk:
-        old_instance = sender.objects.get(pk=instance.pk)
+        old_instance: Worker = sender.objects.get(pk=instance.pk)
         if old_instance.is_active and not instance.is_active:
             CheckInDesk.objects.filter(worker=instance).update(worker=None, is_active=False)
 
 @receiver(post_delete, sender='dbapp.Worker')
-def delete_worker(sender, instance, **kwargs):
+def delete_worker(sender, instance: Worker, **kwargs):
     CheckInDesk.objects.filter(worker=instance).update(worker=None, is_active=False)
