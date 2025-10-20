@@ -9,7 +9,13 @@
 
     {% if perms.dbapp.add_flight %}
         <a href="{% url 'flight_add' %}" class="btn btn-success mb-3">Добавить рейс</a>
+        <a href="{% url 'flight_import' %}" class="btn btn-warning mb-3">
+            <i class="bi bi-upload"></i> Импорт CSV
+        </a>
     {% endif %}
+    <a href="{% url 'flight_export' %}" class="btn btn-info mb-3">
+        <i class="bi bi-download"></i> Экспорт CSV
+    </a>
 
     <div class="card mb-4">
         <div class="card-body">

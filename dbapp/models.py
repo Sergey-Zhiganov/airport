@@ -330,7 +330,7 @@ class Flight(models.Model):
             errors['planned_departure'] = 'Для рейсов, вылетающих из данного аэропорта, необходимо указать время вылета'
         
         if self.arrival_airport.pk == 1 and not self.planned_arrival:
-            errors['planned_arrival'] = 'Для рейсов, прибывающие в данный аэропорт, неоходимо указать время прибытия'
+            errors['planned_arrival'] = 'Для рейсов, прибывающие в данный аэропорт, необходимо указать время прибытия'
 
 class CheckInDeskFlight(models.Model):
     desk = models.ForeignKey(
@@ -535,13 +535,105 @@ class BoardingPass(models.Model):
         verbose_name = 'Посадочный талон'
         verbose_name_plural = 'Посадочные талоны'
 
+class AnalyticsFlight(models.Model):
+    id = models.IntegerField(primary_key=True)
+    number = models.IntegerField()
+    airline_name = models.CharField(max_length=255)
+    planned_departure = models.DateTimeField()
+    planned_arrival = models.DateTimeField()
+    actual_departure = models.DateTimeField(null=True)
+    actual_arrival = models.DateTimeField(null=True)
+    status = models.CharField(max_length=50)
+    departure_airport = models.CharField(max_length=255)
+    arrival_airport = models.CharField(max_length=255)
+    departure_delay_minutes = models.FloatField(null=True)
+    flight_category = models.CharField(max_length=20)
+
+    class Meta:
+        managed = False
+        db_table = 'analytics_flights'
+
+class AnalyticsPassenger(models.Model):
+    id = models.IntegerField(primary_key=True)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    check_in_passed = models.BooleanField()
+    boarding_passed = models.BooleanField()
+    is_removed = models.BooleanField()
+    flight_id = models.IntegerField()
+    flight_number = models.IntegerField()
+    airline_name = models.CharField(max_length=255)
+    arrival_airport = models.CharField(max_length=255)
+    planned_departure = models.DateTimeField()
+    departure_hour = models.IntegerField()
+    departure_day = models.CharField(max_length=20)
+    baggage_count = models.IntegerField()
+    total_baggage_weight = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        managed = False
+        db_table = 'analytics_passengers'
+
+class AnalyticsCheckinDesk(models.Model):
+    id = models.IntegerField(primary_key=True)
+    desk_number = models.CharField(max_length=20)
+    is_active = models.BooleanField()
+    worker_name = models.CharField(max_length=255)
+    flights_served = models.IntegerField()
+    passengers_processed = models.IntegerField()
+    passengers_checked_in = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'analytics_checkin_desks'
+
+class AnalyticsGate(models.Model):
+    id = models.IntegerField(primary_key=True)
+    gate_number = models.CharField(max_length=20)
+    is_active = models.BooleanField()
+    worker_name = models.CharField(max_length=255)
+    flights_served = models.IntegerField()
+    passengers_processed = models.IntegerField()
+    passengers_boarded = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'analytics_gates'
+
+class AnalyticsBaggage(models.Model):
+    flight_id = models.IntegerField(primary_key=True)
+    flight_number = models.IntegerField()
+    airline_name = models.CharField(max_length=255)
+    arrival_airport = models.CharField(max_length=255)
+    total_passengers = models.IntegerField()
+    total_baggage_items = models.IntegerField()
+    total_baggage_weight = models.DecimalField(max_digits=10, decimal_places=2)
+    avg_baggage_weight = models.DecimalField(max_digits=10, decimal_places=2)
+    passengers_with_baggage = models.IntegerField()
+
+    class Meta:
+        managed = False
+        db_table = 'analytics_baggage'
+
+class AnalyticsTimeEfficiency(models.Model):
+    hour_of_day = models.IntegerField()
+    day_of_week = models.CharField(max_length=20)
+    total_flights = models.IntegerField()
+    total_passengers = models.IntegerField()
+    avg_departure_delay = models.FloatField(null=True)
+    check_in_efficiency_percent = models.FloatField()
+    boarding_efficiency_percent = models.FloatField()
+
+    class Meta:
+        managed = False
+        db_table = 'analytics_time_efficiency'
+
 @receiver(pre_save, sender='dbapp.Worker')
 def deactivate_worker(sender, instance, **kwargs):
     if instance.pk:
         old_instance = sender.objects.get(pk=instance.pk)
         if old_instance.is_active and not instance.is_active:
             CheckInDesk.objects.filter(worker=instance).update(worker=None, is_active=False)
-
 
 @receiver(post_delete, sender='dbapp.Worker')
 def delete_worker(sender, instance, **kwargs):

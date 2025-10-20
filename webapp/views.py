@@ -1,17 +1,21 @@
+from datetime import datetime
 from functools import wraps
-from gc import disable
-from gc import disable
 import json
 import os
+from typing import Literal
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
 from django.contrib.auth.models import Group
-from django.db.models import Q
+from django.contrib.auth.hashers import make_password
+from django.db.models import Count, Avg, Sum, Max, Q
 from django.db import transaction
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+import json
+from django.http import JsonResponse
+from django.shortcuts import render
 
 from dbapp.models import *
 from webapp.forms import *
@@ -55,21 +59,32 @@ def log_action(user, instance, action_flag: int, old_instance = None, change_mes
         change_message=change_message
     )
 
-def check_permission(request: HttpRequest, perms: str | list[str] | None = None):
+def check_permission(
+    request: HttpRequest,
+    perms: str | list[str] | None = None,
+    check_mode: Literal['any', 'all'] = 'any'
+):
     if not request.user.is_authenticated:
         status = 401
         title = "Неавторизован"
         message = "Вы должны войти в систему, чтобы получить доступ к этой странице."
-    else:
+    elif perms:
         if isinstance(perms, str):
             perms = [perms]
 
-        if perms and not any(request.user.has_perm(p) for p in perms):  # type: ignore
+        if check_mode == 'any':
+            has_access = any(request.user.has_perm(p) for p in perms) # type: ignore
+        else:
+            has_access = all(request.user.has_perm(p) for p in perms) # type: ignore
+
+        if not has_access:
             status = 403
             title = "Доступ запрещён"
             message = "У вас нет прав для просмотра этой страницы."
         else:
             return None
+    else:
+        return None
 
     context = {
         "status_code": status,
@@ -78,11 +93,14 @@ def check_permission(request: HttpRequest, perms: str | list[str] | None = None)
     }
     return render(request, "error.html", context, status=status)
 
-def permission_required(perm: str | list[str] | None = None):
+def permission_required(
+    perm: str | list[str] | None = None,
+    check_mode: Literal['any', 'all'] = 'any'
+):
     def decorator(view_func):
         @wraps(view_func)
         def _wrapped_view(request: HttpRequest, *args, **kwargs):
-            response = check_permission(request, perm)
+            response = check_permission(request, perm, check_mode)
             if response:
                 return response
             return view_func(request, *args, **kwargs)
@@ -177,6 +195,7 @@ def worker_edit(request: HttpRequest, worker_id: int):
 def worker_delete(request: HttpRequest, worker_id: int):
     worker = get_object_or_404(Worker, pk=worker_id)
 
+    print(worker == request.user)
     if worker == request.user:
         messages.error(request, "Вы не можете удалить самого себя.")
         return redirect('workers')
@@ -192,6 +211,108 @@ def worker_delete(request: HttpRequest, worker_id: int):
 
     messages.success(request, "Сотрудник успешно удалён!")
     return redirect('workers')
+
+@permission_required('dbapp.add_worker')
+def worker_import(request: HttpRequest):
+    if request.method == 'POST':
+        form = WorkerImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                csv_file = form.cleaned_data['csv_file']
+                csv_text = csv_file.read().decode('utf-8-sig')
+                io_string = io.StringIO(csv_text)
+                
+                imported_count = 0
+                errors = []
+                
+                with transaction.atomic():
+                    reader = csv.DictReader(io_string, delimiter=';')
+                    
+                    for row_num, row in enumerate(reader, start=2):
+                        try:
+                            worker, created = Worker.objects.get_or_create(
+                                username=row['username'],
+                                defaults={
+                                    'last_name': row['last_name'],
+                                    'first_name': row['first_name'],
+                                    'email': row['email'],
+                                    'is_active': row.get('is_active', 'True').lower() == 'true',
+                                    'is_staff': row.get('is_staff', 'False').lower() == 'true',
+                                }
+                            )
+                            
+                            worker.middle_name = row.get('middle_name', '')
+                            if 'phone' in row and row['phone']:
+                                worker.phone = row['phone']
+                            
+                            if 'password' in row and row['password']:
+                                worker.password = make_password(row['password'])
+                            elif created:
+                                worker.set_password('supersecretpassword')
+                            
+                            worker.save()
+                            
+                            if 'groups' in row and row['groups']:
+                                group_names = [name.strip() for name in row['groups'].split(',')]
+                                groups = Group.objects.filter(name__in=group_names)
+                                worker.groups.set(groups)
+                            
+                            imported_count += 1
+                            
+                        except Exception as e:
+                            errors.append(f"Строка {row_num}: {str(e)}")
+                
+                if errors:
+                    messages.error(request, f'Импорт завершен с ошибками. Успешно: {imported_count}')
+                    for error in errors:
+                        messages.error(request, error)
+                else:
+                    messages.success(request, f'Успешно импортировано {imported_count} сотрудников')
+                    
+                return redirect('workers')
+                
+            except Exception as e:
+                messages.error(request, f'Ошибка импорта: {str(e)}')
+    else:
+        form = WorkerImportForm()
+    
+    return render(request, 'import_form.html', {
+        'form': form,
+        'title': 'Импорт сотрудников из CSV',
+        'export_url': 'worker_export',
+        'back_url': 'workers'
+    })
+
+@permission_required('dbapp.view_worker')
+def worker_export(request: HttpRequest):
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="workers_export.csv"'
+    
+    response.write('\ufeff')
+    
+    writer = csv.writer(response, delimiter=';')
+    
+    writer.writerow([
+        'username', 'last_name', 'first_name', 'middle_name', 
+        'email', 'phone', 'groups', 'is_active', 'is_staff'
+    ])
+    
+    workers = Worker.objects.all().prefetch_related('groups')
+    for worker in workers:
+        group_names = ', '.join(worker.groups.values_list('name', flat=True))
+        writer.writerow([
+            worker.username,
+            worker.last_name,
+            worker.first_name,
+            worker.middle_name or '',
+            worker.email,
+            worker.phone or '',
+            group_names,
+            'True' if worker.is_active else 'False',
+            'True' if worker.is_staff else 'False',
+        ])
+    
+    return response
 
 @permission_required(['dbapp.view_checkindesk', 'dbapp.view_own_checkindesk'])
 def check_in_desks(request: HttpRequest):
@@ -471,6 +592,104 @@ def airline_delete(request: HttpRequest, airline_id: int):
     messages.success(request, "Авиакомпания успешно удалена!")
     return redirect('airlines')
 
+@permission_required('dbapp.add_airline')
+def airline_import(request: HttpRequest):
+    if request.method == 'POST':
+        form = AirlineImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                csv_file = form.cleaned_data['csv_file']
+                csv_text = csv_file.read().decode('utf-8-sig')
+                
+                imported_count = 0
+                errors = []
+                
+                with transaction.atomic():
+                    lines = csv_text.strip().split('\n')
+                    headers = [header.strip() for header in lines[0].split(';')]
+                    
+                    for line_num, line in enumerate(lines[1:], start=2):
+                        try:
+                            if not line.strip():
+                                continue
+                                
+                            values = [value.strip() for value in line.split(';')]
+                            if len(values) != len(headers):
+                                errors.append(f"Строка {line_num}: Неверное количество колонок")
+                                continue
+                            
+                            row = dict(zip(headers, values))
+                            
+                            if not all(row.get(field) for field in ['name', 'IATA_code', 'ICAO_code']):
+                                errors.append(f"Строка {line_num}: Отсутствуют обязательные поля")
+                                continue
+                            
+                            airline, created = Airline.objects.get_or_create(
+                                IATA_code=row['IATA_code'],
+                                defaults={
+                                    'name': row['name'],
+                                    'ICAO_code': row['ICAO_code'],
+                                    'contact_person': row.get('contact_person', ''),
+                                    'contact_phone': row.get('contact_phone', ''),
+                                    'contact_email': row.get('contact_email', ''),
+                                }
+                            )
+                            
+                            if not created:
+                                airline.name = row['name']
+                                airline.ICAO_code = row['ICAO_code']
+                                airline.contact_person = row.get('contact_person', '')
+                                airline.contact_phone = row.get('contact_phone', '')
+                                airline.contact_email = row.get('contact_email', '')
+                                airline.save()
+                            
+                            imported_count += 1
+                            
+                        except Exception as e:
+                            errors.append(f"Строка {line_num}: {str(e)}")
+                
+                if errors:
+                    messages.error(request, f'Импорт завершен с ошибками. Успешно: {imported_count}')
+                    for error in errors[:5]:
+                        messages.error(request, error)
+                else:
+                    messages.success(request, f'Успешно импортировано {imported_count} авиакомпаний')
+                    
+                return redirect('airlines')
+                
+            except Exception as e:
+                messages.error(request, f'Ошибка импорта: {str(e)}')
+    else:
+        form = AirlineImportForm()
+    
+    return render(request, 'import_form.html', {
+        'form': form,
+        'title': 'Импорт авиакомпаний из CSV',
+        'export_url': 'airline_export',
+        'back_url': 'airlines'
+    })
+
+@permission_required('dbapp.view_airline')
+def airline_export(request: HttpRequest):
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="airlines_export.csv"'
+    
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['name', 'IATA_code', 'ICAO_code', 'contact_person', 'contact_phone', 'contact_email'])
+    
+    airlines = Airline.objects.all()
+    for airline in airlines:
+        writer.writerow([
+            airline.name,
+            airline.IATA_code,
+            airline.ICAO_code,
+            airline.contact_person,
+            airline.contact_phone,
+            airline.contact_email,
+        ])
+    
+    return response
+
 @permission_required('dbapp.view_airplane')
 def airplanes(request: HttpRequest):
     return render(request, 'airplanes.html', {'airplanes': Airplane.objects.all()})
@@ -540,6 +759,107 @@ def airplane_delete(request: HttpRequest, airplane_id: int):
 
     messages.success(request, "Самолёт успешно удалён!")
     return redirect('airplanes')
+
+@permission_required('dbapp.add_airplane')
+def airplane_import(request: HttpRequest):
+    if request.method == 'POST':
+        form = AirplaneImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                csv_file = form.cleaned_data['csv_file']
+                csv_text = csv_file.read().decode('utf-8-sig')
+                
+                imported_count = 0
+                errors = []
+                
+                with transaction.atomic():
+                    lines = csv_text.strip().split('\n')
+                    headers = [header.strip() for header in lines[0].split(';')]
+                    
+                    for line_num, line in enumerate(lines[1:], start=2):
+                        try:
+                            if not line.strip():
+                                continue
+                                
+                            values = [value.strip() for value in line.split(';')]
+                            if len(values) != len(headers):
+                                errors.append(f"Строка {line_num}: Неверное количество колонок")
+                                continue
+                            
+                            row = dict(zip(headers, values))
+                            
+                            if not all(row.get(field) for field in ['tail_number', 'name', 'airline', 'layout', 'rows']):
+                                errors.append(f"Строка {line_num}: Отсутствуют обязательные поля")
+                                continue
+                            
+                            try:
+                                airline = Airline.objects.get(name=row['airline'])
+                            except Airline.DoesNotExist:
+                                errors.append(f"Строка {line_num}: Авиакомпания '{row['airline']}' не найдена")
+                                continue
+                            
+                            airplane, created = Airplane.objects.get_or_create(
+                                tail_number=row['tail_number'],
+                                defaults={
+                                    'name': row['name'],
+                                    'airline': airline,
+                                    'layout': row['layout'],
+                                    'rows': int(row['rows']),
+                                }
+                            )
+                            
+                            if not created:
+                                airplane.name = row['name']
+                                airplane.airline = airline
+                                airplane.layout = row['layout']
+                                airplane.rows = int(row['rows'])
+                                airplane.save()
+                            
+                            imported_count += 1
+                            
+                        except Exception as e:
+                            errors.append(f"Строка {line_num}: {str(e)}")
+                
+                if errors:
+                    messages.error(request, f'Импорт завершен с ошибками. Успешно: {imported_count}')
+                    for error in errors[:5]:
+                        messages.error(request, error)
+                else:
+                    messages.success(request, f'Успешно импортировано {imported_count} самолетов')
+                    
+                return redirect('airplanes')
+                
+            except Exception as e:
+                messages.error(request, f'Ошибка импорта: {str(e)}')
+    else:
+        form = AirplaneImportForm()
+    
+    return render(request, 'import_form.html', {
+        'form': form,
+        'title': 'Импорт самолетов из CSV',
+        'export_url': 'airplane_export',
+        'back_url': 'airplanes'
+    })
+
+@permission_required('dbapp.view_airplane')
+def airplane_export(request: HttpRequest):
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="airplanes_export.csv"'
+    
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['tail_number', 'name', 'airline', 'layout', 'rows'])
+    
+    airplanes = Airplane.objects.select_related('airline').all()
+    for airplane in airplanes:
+        writer.writerow([
+            airplane.tail_number,
+            airplane.name,
+            airplane.airline,
+            airplane.layout,
+            airplane.rows,
+        ])
+    
+    return response
 
 @permission_required('dbapp.view_airport')
 def airports(request: HttpRequest):
@@ -611,6 +931,95 @@ def airport_delete(request: HttpRequest, airport_id: int):
     messages.success(request, "Аэропорт успешно удалён!")
     return redirect('airports')
 
+@permission_required('dbapp.add_airport')
+def airport_import(request: HttpRequest):
+    if request.method == 'POST':
+        form = AirportImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                csv_file = form.cleaned_data['csv_file']
+                csv_text = csv_file.read().decode('utf-8-sig')
+                
+                imported_count = 0
+                errors = []
+                
+                with transaction.atomic():
+                    lines = csv_text.strip().split('\n')
+                    headers = [header.strip() for header in lines[0].split(';')]
+                    
+                    for line_num, line in enumerate(lines[1:], start=2):
+                        try:
+                            if not line.strip():
+                                continue
+                                
+                            values = [value.strip() for value in line.split(';')]
+                            if len(values) != len(headers):
+                                errors.append(f"Строка {line_num}: Неверное количество колонок")
+                                continue
+                            
+                            row = dict(zip(headers, values))
+                            
+                            if not all(row.get(field) for field in ['name', 'IATA_code', 'ICAO_code']):
+                                errors.append(f"Строка {line_num}: Отсутствуют обязательные поля")
+                                continue
+                            
+                            airport, created = Airport.objects.get_or_create(
+                                IATA_code=row['IATA_code'],
+                                defaults={
+                                    'name': row['name'],
+                                    'ICAO_code': row['ICAO_code'],
+                                }
+                            )
+                            
+                            if not created:
+                                airport.name = row['name']
+                                airport.ICAO_code = row['ICAO_code']
+                                airport.save()
+                            
+                            imported_count += 1
+                            
+                        except Exception as e:
+                            errors.append(f"Строка {line_num}: {str(e)}")
+                
+                if errors:
+                    messages.error(request, f'Импорт завершен с ошибками. Успешно: {imported_count}')
+                    for error in errors[:5]:
+                        messages.error(request, error)
+                else:
+                    messages.success(request, f'Успешно импортировано {imported_count} аэропортов')
+                    
+                return redirect('airports')
+                
+            except Exception as e:
+                messages.error(request, f'Ошибка импорта: {str(e)}')
+    else:
+        form = AirportImportForm()
+    
+    return render(request, 'import_form.html', {
+        'form': form,
+        'title': 'Импорт аэропортов из CSV',
+        'export_url': 'airport_export',
+        'back_url': 'airports'
+    })
+
+@permission_required('dbapp.view_airport')
+def airport_export(request: HttpRequest):
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="airports_export.csv"'
+    
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['name', 'IATA_code', 'ICAO_code'])
+    
+    airports = Airport.objects.all()
+    for airport in airports:
+        writer.writerow([
+            airport.name,
+            airport.IATA_code,
+            airport.ICAO_code,
+        ])
+    
+    return response
+
 @permission_required('dbapp.view_flight')
 def flights(request: HttpRequest):
     return render(request, 'flights.html', {'flights': Flight.objects.all()})
@@ -669,7 +1078,7 @@ def flight_edit(request: HttpRequest, flight_id: int):
             log_action(request.user, updated_instance, CHANGE, old_instance=flight)
 
             messages.success(request, "Рейс успешно обновлён!")
-            return redirect('gates')
+            return redirect('flights')
     else:
         form = FlightForm(instance=flight, is_edit=True)
 
@@ -681,6 +1090,8 @@ def flight_edit(request: HttpRequest, flight_id: int):
         airplane.pk: airplane.airline.IATA_code
         for airplane in Airplane.objects.select_related('airline').all()
     }
+
+    print(flight.__dict__)
 
     return render(request, 'flight_form.html', {
         'form': form,
@@ -704,6 +1115,153 @@ def flight_delete(request: HttpRequest, flight_id: int):
 
     messages.success(request, "Рейс успешно удалён!")
     return redirect('flights')
+
+@permission_required('dbapp.add_flight')
+def flight_import(request: HttpRequest):
+    if request.method == 'POST':
+        form = FlightImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                csv_file = form.cleaned_data['csv_file']
+                csv_text = csv_file.read().decode('utf-8-sig')
+                
+                imported_count = 0
+                errors = []
+                
+                with transaction.atomic():
+                    lines = csv_text.strip().split('\n')
+                    headers = [header.strip() for header in lines[0].split(';')]
+                    
+                    for line_num, line in enumerate(lines[1:], start=2):
+                        try:
+                            if not line.strip():
+                                continue
+                                
+                            values = [value.strip() for value in line.split(';')]
+                            if len(values) != len(headers):
+                                errors.append(f"Строка {line_num}: Неверное количество колонок")
+                                continue
+                            
+                            row = dict(zip(headers, values))
+
+                            def clean_value(value):
+                                if not value:
+                                    return value
+                                cleaned = value.replace('\ufeff', '').strip()
+                                cleaned = cleaned.replace('\u200b', '').replace('\uFEFF', '')
+                                return cleaned
+                            
+                            cleaned_row = {key: clean_value(value) for key, value in row.items()}
+                            
+                            if not all(cleaned_row.get(field) for field in ['number', 'airplane', 'departure_airport', 'arrival_airport', 'flight_status']):
+                                errors.append(f"Строка {line_num}: Отсутствуют обязательные поля")
+                                continue
+                            
+                            try:
+                                airplane = Airplane.objects.get(tail_number=cleaned_row['airplane'])
+                            except Airplane.DoesNotExist:
+                                errors.append(f"Строка {line_num}: Самолет '{cleaned_row['airplane']}' не найден")
+                                continue
+                                
+                            try:
+                                departure_airport = Airport.objects.get(IATA_code=row['departure_airport'])
+                            except Airport.DoesNotExist:
+                                errors.append(f"Строка {line_num}: Аэропорт вылета '{cleaned_row['departure_airport']}' не найден")
+                                continue
+                                
+                            try:
+                                arrival_airport = Airport.objects.get(IATA_code=cleaned_row['arrival_airport'])
+                            except Airport.DoesNotExist:
+                                errors.append(f"Строка {line_num}: Аэропорт прибытия '{cleaned_row['arrival_airport']}' не найден")
+                                continue
+                                
+                            try:
+                                flight_status = FlightStatus.objects.get(name=cleaned_row['flight_status'])
+                            except FlightStatus.DoesNotExist:
+                                errors.append(f"Строка {line_num}: Статус рейса '{cleaned_row['flight_status']}' не найден")
+                                continue
+                            
+                            def parse_custom_datetime(datetime_str):
+                                if not datetime_str or datetime_str.strip() == '':
+                                    return None
+                                try:
+                                    return datetime.strptime(datetime_str.strip(), '%d.%m.%Y %H:%M')
+                                except ValueError:
+                                   return None
+                            
+                            planned_departure = parse_custom_datetime(cleaned_row.get('planned_departure'))
+                            planned_arrival = parse_custom_datetime(cleaned_row.get('planned_arrival'))
+                            
+                            if cleaned_row.get('planned_departure') and not planned_departure:
+                                errors.append(f"Строка {line_num}: Неверный формат даты вылета '{cleaned_row['planned_departure']}'. Ожидается: ДД.ММ.ГГГГ ЧЧ:ММ")
+                                continue
+                                
+                            if cleaned_row.get('planned_arrival') and not planned_arrival:
+                                errors.append(f"Строка {line_num}: Неверный формат даты прибытия '{cleaned_row['planned_arrival']}'. Ожидается: ДД.ММ.ГГГГ ЧЧ:ММ")
+                                continue
+                            
+                            if planned_departure and planned_arrival and planned_arrival < planned_departure:
+                                errors.append(f"Строка {line_num}: Дата прибытия не может быть раньше даты вылета")
+                                continue
+                            
+                            Flight.objects.create(
+                                number=int(cleaned_row['number']),
+                                airplane=airplane,
+                                planned_departure=planned_departure,
+                                planned_arrival=planned_arrival,
+                                departure_airport=departure_airport,
+                                arrival_airport=arrival_airport,
+                                flight_status=flight_status,
+                            )
+                            
+                            imported_count += 1
+                            
+                        except Exception as e:
+                            errors.append(f"Строка {line_num}: {str(e)}")
+                
+                if errors:
+                    messages.error(request, f'Импорт завершен с ошибками. Успешно: {imported_count}')
+                    for error in errors[:5]:
+                        messages.error(request, error)
+                else:
+                    messages.success(request, f'Успешно импортировано {imported_count} рейсов')
+                    
+                return redirect('flights')
+                
+            except Exception as e:
+                messages.error(request, f'Ошибка импорта: {str(e)}')
+    else:
+        form = FlightImportForm()
+    
+    return render(request, 'import_form.html', {
+        'form': form,
+        'title': 'Импорт рейсов из CSV',
+        'export_url': 'flight_export',
+        'back_url': 'flights'
+    })
+
+@permission_required('dbapp.view_flight')
+def flight_export(request: HttpRequest):
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="flights_export.csv"'
+    
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['number', 'airplane', 'planned_departure', 'planned_arrival', 
+                    'departure_airport', 'arrival_airport', 'flight_status'])
+    
+    flights = Flight.objects.select_related('airplane', 'departure_airport', 'arrival_airport', 'flight_status').all()
+    for flight in flights:
+        writer.writerow([
+            flight.number,
+            flight.airplane.tail_number,
+            flight.planned_departure.strftime('%d.%m.%Y %H:%M') if flight.planned_departure else '',
+            flight.planned_arrival.strftime('%d.%m.%Y %H:%M') if flight.planned_arrival else '',
+            flight.departure_airport.IATA_code,
+            flight.arrival_airport.IATA_code,
+            flight.flight_status,
+        ])
+    
+    return response
 
 @permission_required(['dbapp.change_checkindeskflight', 'dbapp.change_is_active_checkindeskflight'])
 def check_in_desk_flights(request: HttpRequest, check_in_desk_id: int):
@@ -1014,6 +1572,106 @@ def passenger_delete(request: HttpRequest, passenger_id: int):
     messages.success(request, "Пассажир успешно удалён!")
     return redirect('passengers')
 
+@permission_required('dbapp.add_passenger')
+def passenger_import(request: HttpRequest):
+    if request.method == 'POST':
+        form = PassengerImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                csv_file = form.cleaned_data['csv_file']
+                csv_text = csv_file.read().decode('utf-8-sig')
+                
+                imported_count = 0
+                errors = []
+                
+                with transaction.atomic():
+                    lines = csv_text.strip().split('\n')
+                    headers = [header.strip() for header in lines[0].split(';')]
+                    
+                    for line_num, line in enumerate(lines[1:], start=2):
+                        try:
+                            if not line.strip():
+                                continue
+                                
+                            values = [value.strip() for value in line.split(';')]
+                            if len(values) != len(headers):
+                                errors.append(f"Строка {line_num}: Неверное количество колонок")
+                                continue
+                            
+                            row = dict(zip(headers, values))
+                            
+                            if not all(row.get(field) for field in ['first_name', 'last_name', 'passport', 'flight']):
+                                errors.append(f"Строка {line_num}: Отсутствуют обязательные поля")
+                                continue
+                            
+                            try:
+                                flight_number = int(row['flight'])
+                                flight = Flight.objects.get(number=flight_number)
+                            except (ValueError, Flight.DoesNotExist):
+                                errors.append(f"Строка {line_num}: Рейс '{row['flight']}' не найден")
+                                continue
+                    
+                            Passenger.objects.create(
+                                first_name=row['first_name'],
+                                last_name=row['last_name'],
+                                middle_name=row.get('middle_name', ''),
+                                passport=row['passport'],
+                                flight=flight,
+                                check_in_passed=row.get('check_in_passed', 'False').lower() == 'true',
+                                boarding_passed=row.get('boarding_passed', 'False').lower() == 'true',
+                                is_removed=row.get('is_removed', 'False').lower() == 'true',
+                            )
+                            
+                            imported_count += 1
+                            
+                        except Exception as e:
+                            errors.append(f"Строка {line_num}: {str(e)}")
+                
+                if errors:
+                    messages.error(request, f'Импорт завершен с ошибками. Успешно: {imported_count}')
+                    for error in errors[:5]:
+                        messages.error(request, error)
+                else:
+                    messages.success(request, f'Успешно импортировано {imported_count} пассажиров')
+                    
+                return redirect('passengers')
+                
+            except Exception as e:
+                messages.error(request, f'Ошибка импорта: {str(e)}')
+    else:
+        form = PassengerImportForm()
+    
+    return render(request, 'import_form.html', {
+        'form': form,
+        'title': 'Импорт пассажиров из CSV',
+        'export_url': 'passenger_export',
+        'back_url': 'passengers'
+    })
+
+@permission_required('dbapp.view_passenger')
+def passenger_export(request: HttpRequest):
+    response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+    response['Content-Disposition'] = 'attachment; filename="passengers_export.csv"'
+    
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['first_name', 'last_name', 'middle_name', 'passport', 'flight', 
+                    'check_in_passed', 'boarding_passed', 'is_removed'])
+    
+    passengers = Passenger.objects.select_related('flight').all()
+    for passenger in passengers:
+        writer.writerow([
+            passenger.first_name,
+            passenger.last_name,
+            passenger.middle_name or '',
+            passenger.passport,
+            passenger.flight,
+            'True' if passenger.check_in_passed else 'False',
+            'True' if passenger.boarding_passed else 'False',
+            'True' if passenger.is_removed else 'False',
+        ])
+    
+    return response
+
 @permission_required('dbapp.view_baggage')
 def baggage(request: HttpRequest, passenger_id: int):
     passenger = get_object_or_404(Passenger, pk=passenger_id)
@@ -1208,3 +1866,89 @@ def backup_download(request: HttpRequest, backup_id: int):
     else:
         messages.error(request, "Файл бэкапа не найден")
         return redirect('backup_list')
+
+@permission_required([
+    'dbapp.view_flight',
+    'dbapp.view_passenger', 
+    'dbapp.view_checkindesk',
+    'dbapp.view_gate',
+    'dbapp.view_airline',
+    'dbapp.view_baggage'
+])
+def analytics_dashboard(request: HttpRequest):
+    context = {}
+    
+    if (request.user.has_perm('dbapp.view_flight') and # type: ignore
+        request.user.has_perm('dbapp.view_airline')): # type: ignore
+        
+        status_stats = AnalyticsFlight.objects.values('flight_category').annotate(
+            count=Count('id'),
+            avg_delay=Avg('departure_delay_minutes')
+        )
+        context['status_stats'] = list(status_stats)
+        
+        total_stats = {
+            'total_flights': AnalyticsFlight.objects.count(),
+            'completed_flights': AnalyticsFlight.objects.filter(flight_category='completed').count(),
+            'scheduled_flights': AnalyticsFlight.objects.filter(flight_category='scheduled').count(),
+            'cancelled_flights': AnalyticsFlight.objects.filter(flight_category='cancelled').count(),
+        }
+        
+        avg_delay = AnalyticsFlight.objects.aggregate(
+            avg_delay=Avg('departure_delay_minutes')
+        )['avg_delay']
+        total_stats['avg_delay'] = avg_delay if avg_delay else 0
+        
+        context['flight_total_stats'] = total_stats
+        
+        flights_by_airline = AnalyticsFlight.objects.values('airline_name').annotate(
+            count=Count('id'),
+            avg_delay=Avg('departure_delay_minutes')
+        ).order_by('-count')[:10]
+        context['flights_by_airline'] = list(flights_by_airline)
+    
+    if request.user.has_perm('dbapp.view_passenger'): # type: ignore
+        passenger_stats = AnalyticsPassenger.objects.aggregate(
+            total_passengers=Count('id'),
+            checked_in=Count('id', filter=Q(check_in_passed=True)),
+            boarded=Count('id', filter=Q(boarding_passed=True)),
+            removed=Count('id', filter=Q(is_removed=True)),
+        )
+        context['passenger_stats'] = passenger_stats
+        
+        passengers_by_destination = AnalyticsPassenger.objects.values('arrival_airport').annotate(
+            passenger_count=Count('id'),
+        ).order_by('-passenger_count')[:5]
+        context['passengers_by_destination'] = list(passengers_by_destination)
+    
+    if (request.user.has_perm('dbapp.view_checkindesk') and # type: ignore
+        request.user.has_perm('dbapp.view_gate')): # type: ignore
+        
+        checkin_stats = AnalyticsCheckinDesk.objects.aggregate(
+            total_desks=Count('id'),
+            active_desks=Count('id', filter=Q(is_active=True)),
+            total_passengers_processed=Sum('passengers_processed'),
+            total_passengers_checked_in=Sum('passengers_checked_in'),
+        )
+        
+        if checkin_stats['total_passengers_processed']:
+            checkin_stats['avg_efficiency'] = (
+                checkin_stats['total_passengers_checked_in'] / 
+                checkin_stats['total_passengers_processed'] * 100
+            )
+        else:
+            checkin_stats['avg_efficiency'] = 0
+        
+        context['checkin_stats'] = checkin_stats
+    
+    if (request.user.has_perm('dbapp.view_passenger') and # type: ignore
+        request.user.has_perm('dbapp.view_baggage')): # type: ignore
+        
+        baggage_stats = AnalyticsPassenger.objects.aggregate(
+            avg_baggage_weight=Avg('total_baggage_weight'),
+            total_baggage_count=Sum('baggage_count')
+        )
+        if 'passenger_stats' in context:
+            context['passenger_stats'].update(baggage_stats)
+    
+    return render(request, 'dashboard.html', context)

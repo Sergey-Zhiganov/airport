@@ -28,33 +28,232 @@
             color: inherit;
             opacity: 0.9;
         }
+        
+        /* Стили для горячих клавиш */
+        kbd {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 3px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            color: #212529;
+            font-size: 0.875em;
+            padding: 2px 6px;
+        }
+        
+        .hotkey-help-btn {
+            opacity: 0.7;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+        
+        .hotkey-help-btn:hover {
+            opacity: 1;
+        }
+        
+        .modal-body p {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+        }
     </style>
 </head>
 <body>
 
-<header class="mb-4 bg-primary text-white text-center py-3">
+<header class="app-header mb-4 bg-primary text-white text-center py-3 position-relative">
     <a href="{% url 'index' %}" class="header-link">
         <h1 class="mb-0">Аэропорт Подольск</h1>
     </a>
+        <button type="button" class="btn btn-outline-light btn-sm position-absolute top-50 end-0 translate-middle-y me-3 hotkey-help-btn" 
+            onclick="showHotkeysHelp()" title="Горячие клавиши (Ctrl+H)">
+        <i class="bi bi-keyboard"></i>
+    </button>
 </header>
 
-<main class="container mb-4">
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
-    
-    {% block content %}
-    {% endblock %}
+<main class="app-main">
+    <div class="container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        
+        {% block content %}
+        {% endblock %}
+    </div>
 </main>
 
-<footer class="bg-primary text-white text-center py-2 mt-4">
-    <p>© 2025 Аэропорт Подольск</p>
+<footer class="bg-primary text-white text-center py-2 mt-4 position-relative">
+    <p class="mb-0">© 2025 Аэропорт Подольск</p>
+        <button type="button" class="btn btn-info btn-sm position-absolute top-50 end-0 translate-middle-y me-3 hotkey-help-btn" 
+            onclick="showHotkeysHelp()" title="Горячие клавиши (Ctrl+H)">
+        <i class="bi bi-keyboard"></i>
+    </button>
 </footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('keydown', function(event) {
+       if (event.altKey && !event.ctrlKey && !event.shiftKey) {
+        switch(event.key) {
+            case '1':                event.preventDefault();
+                window.location.href = "{% url 'index' %}";
+                break;
+                
+            case '2':                event.preventDefault();
+                {% if user.is_authenticated %}
+                window.location.href = "{% url 'profile' %}";
+                {% else %}
+                window.location.href = "{% url 'login' %}";
+                {% endif %}
+                break;
+                
+            case 'p':                event.preventDefault();
+                window.location.href = "{% url 'passengers' %}";
+                break;
+                
+            case 'f':                event.preventDefault();
+                window.location.href = "{% url 'flights' %}";
+                break;
+                
+            case 'a':                event.preventDefault();
+                window.location.href = "{% url 'airplanes' %}";
+                break;
+                
+            case 'c':                event.preventDefault();
+                window.location.href = "{% url 'airlines' %}";
+                break;
+                
+            case 's':                event.preventDefault();
+                const searchInput = document.querySelector('input[type="text"]');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+                break;
+                
+            case 'n':                event.preventDefault();
+                const addButton = document.querySelector('a.btn-success, button.btn-success');
+                if (addButton) addButton.click();
+                break;
+                
+            case 'ArrowDown':                event.preventDefault();
+                const nextBtn = document.querySelector('.pagination .page-item:not(.disabled) .page-link[rel="next"]');
+                if (nextBtn) nextBtn.click();
+                break;
+                
+            case 'ArrowUp':                event.preventDefault();
+                const prevBtn = document.querySelector('.pagination .page-item:not(.disabled) .page-link[rel="prev"]');
+                if (prevBtn) prevBtn.click();
+                break;
+        }
+    }
+    
+       if (event.ctrlKey && !event.altKey) {
+        switch(event.key) {
+            case 'r':                event.preventDefault();
+                window.location.reload();
+                break;
+                
+            case 'e':                event.preventDefault();
+                const exportBtn = document.querySelector('a[href*="export"], a.btn-info');
+                if (exportBtn) exportBtn.click();
+                break;
+                
+            case 'i':                event.preventDefault();
+                const importBtn = document.querySelector('a[href*="import"], a.btn-warning');
+                if (importBtn) importBtn.click();
+                break;
+                
+            case 'h':                event.preventDefault();
+                showHotkeysHelp();
+                break;
+                
+            case 's':                event.preventDefault();
+                if (window.location.pathname.includes('/edit') || window.location.pathname.includes('/add')) {
+                    const saveBtn = document.querySelector('button[type="submit"]');
+                    if (saveBtn) saveBtn.click();
+                }
+                break;
+        }
+    }
+});
+
+// Функция показа справки по горячим клавишам
+function showHotkeysHelp() {
+    const helpHtml = `
+        <div class="modal fade" id="hotkeysHelp" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-keyboard me-2"></i>Горячие клавиши
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="border-bottom pb-2">Навигация:</h6>
+                                <p><kbd>Alt</kbd> + <kbd>1</kbd> - Главная страница</p>
+                                <p><kbd>Alt</kbd> + <kbd>2</kbd> - Личный кабинет</p>
+                                <p><kbd>Alt</kbd> + <kbd>P</kbd> - Пассажиры</p>
+                                <p><kbd>Alt</kbd> + <kbd>F</kbd> - Рейсы</p>
+                                <p><kbd>Alt</kbd> + <kbd>A</kbd> - Самолеты</p>
+                                <p><kbd>Alt</kbd> + <kbd>C</kbd> - Авиакомпании</p>
+                                <p><kbd>Alt</kbd> + <kbd>↑</kbd> - Предыдущая страница</p>
+                                <p><kbd>Alt</kbd> + <kbd>↓</kbd> - Следующая страница</p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="border-bottom pb-2">Действия:</h6>
+                                <p><kbd>Alt</kbd> + <kbd>S</kbd> - Поиск</p>
+                                <p><kbd>Alt</kbd> + <kbd>N</kbd> - Добавить новый</p>
+                                <p><kbd>Ctrl</kbd> + <kbd>E</kbd> - Экспорт</p>
+                                <p><kbd>Ctrl</kbd> + <kbd>I</kbd> - Импорт</p>
+                                <p><kbd>Ctrl</kbd> + <kbd>R</kbd> - Обновить</p>
+                                <p><kbd>Ctrl</kbd> + <kbd>S</kbd> - Сохранить форму</p>
+                                <p><kbd>Ctrl</kbd> + <kbd>H</kbd> - Справка</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Горячие клавиши работают на всех страницах системы
+                            </small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Понятно</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+       const existingModal = document.getElementById('hotkeysHelp');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+       document.body.insertAdjacentHTML('beforeend', helpHtml);
+    
+       const modal = new bootstrap.Modal(document.getElementById('hotkeysHelp'));
+    modal.show();
+}
+
+// Показываем подсказку при первом посещении
+document.addEventListener('DOMContentLoaded', function() {
+    if (!localStorage.getItem('hotkeysShown')) {
+        setTimeout(() => {
+                       if (window.location.pathname === '/' || window.location.pathname === '{% url "index" %}') {
+                showHotkeysHelp();
+                localStorage.setItem('hotkeysShown', 'true');
+            }
+        }, 3000);
+    }
+});
+</script>
 
 </body>
 </html>

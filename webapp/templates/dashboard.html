@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Панель аналитики</h1>
+    
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ flight_total_stats.total_flights|default:0 }}</h3>
+                    <p class="stats-label">Всего рейсов</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ passenger_stats.total_passengers|default:0 }}</h3>
+                    <p class="stats-label">Всего пассажиров</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ flight_total_stats.avg_delay|floatformat:1|default:0 }}</h3>
+                    <p class="stats-label">Средняя задержка (мин)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <h3 class="stats-number">{{ checkin_stats.avg_efficiency|floatformat:1|default:0 }}%</h3>
+                    <p class="stats-label">Эффективность регистрации</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Статусы рейсов</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="flightStatusChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Пассажиры по направлениям</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="passengersByDestinationChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if flight_total_stats %}
+    const flightStatusData = {
+        'completed': {{ flight_total_stats.completed_flights|default:0 }},
+        'scheduled': {{ flight_total_stats.scheduled_flights|default:0 }},
+        'cancelled': {{ flight_total_stats.cancelled_flights|default:0 }}
+    };
+    
+    new Chart(document.getElementById('flightStatusChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Выполнено', 'Запланировано', 'Отменено'],
+            datasets: [{
+                data: [
+                    flightStatusData.completed,
+                    flightStatusData.scheduled, 
+                    flightStatusData.cancelled
+                ],
+                backgroundColor: ['#28a745', '#17a2b8', '#dc3545']
+            }]
+        }
+    });
+    {% endif %}
+
+    {% if passengers_by_destination %}
+    const destinations = [{% for dest in passengers_by_destination %}'{{ dest.arrival_airport }}'{% if not forloop.last %}, {% endif %}{% endfor %}];
+    const passengerCounts = [{% for dest in passengers_by_destination %}{{ dest.passenger_count }}{% if not forloop.last %}, {% endif %}{% endfor %}];
+    
+    new Chart(document.getElementById('passengersByDestinationChart'), {
+        type: 'bar',
+        data: {
+            labels: destinations,
+            datasets: [{
+                label: 'Пассажиры',
+                data: passengerCounts,
+                backgroundColor: '#007bff'
+            }]
+        }
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}

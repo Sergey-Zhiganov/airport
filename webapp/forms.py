@@ -1,6 +1,8 @@
+import csv
+import io
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from matplotlib import widgets
+from django.forms import ValidationError
 
 from dbapp.models import Airline, Airplane, Airport, Baggage, BoardingPass, CheckInDesk, CheckInDeskFlight, Flight, FlightTime, Gate, GateFlight, Passenger, Worker
 
@@ -312,3 +314,69 @@ class BoardingPassForm(forms.ModelForm):
         widgets = {
             'seat': forms.HiddenInput()
         }
+
+
+class BaseImportForm(forms.Form):
+    csv_file = forms.FileField(
+        label='CSV файл',
+        help_text='Выберите CSV файл с данными'
+    )
+    
+    def clean_csv_file(self, required_fields):
+        csv_file = self.cleaned_data['csv_file']
+        if not csv_file.name.endswith('.csv'):
+            raise ValidationError('Файл должен быть в формате CSV')
+        
+        try:
+            csv_text = csv_file.read().decode('utf-8-sig')
+            lines = csv_text.strip().split('\n')
+            
+            if not lines:
+                raise ValidationError('CSV файл пуст')
+                
+            headers = [header.strip() for header in lines[0].split(';')]
+            
+            missing_fields = [field for field in required_fields if field not in headers]
+            if missing_fields:
+                raise ValidationError(
+                    f'CSV файл должен содержать колонки: {", ".join(required_fields)}. '
+                    f'Отсутствуют: {", ".join(missing_fields)}'
+                )
+                
+        except Exception as e:
+            raise ValidationError(f'Ошибка чтения CSV файла: {str(e)}')
+        
+        csv_file.seek(0)
+        return csv_file
+
+
+
+class WorkerImportForm(BaseImportForm):    
+    def clean_csv_file(self): # type: ignore
+        required_fields = ['username', 'last_name', 'first_name', 'email']
+        return super().clean_csv_file(required_fields)
+    
+class AirlineImportForm(BaseImportForm):
+    def clean_csv_file(self): # type: ignore
+        required_fields = ['name', 'IATA_code', 'ICAO_code']
+        return super().clean_csv_file(required_fields)
+
+class AirplaneImportForm(BaseImportForm):
+    def clean_csv_file(self): # type: ignore
+        required_fields = ['tail_number', 'name', 'airline', 'layout', 'rows']
+        return super().clean_csv_file(required_fields)
+
+class AirportImportForm(BaseImportForm):
+    def clean_csv_file(self): # type: ignore
+        required_fields = ['name', 'IATA_code', 'ICAO_code']
+        return super().clean_csv_file(required_fields)
+
+class FlightImportForm(BaseImportForm):
+    def clean_csv_file(self): # type: ignore
+        required_fields = ['number', 'airplane', 'departure_airport', 'arrival_airport', 'flight_status']
+        return super().clean_csv_file(required_fields)
+
+class PassengerImportForm(BaseImportForm):
+    def clean_csv_file(self): # type: ignore
+        required_fields = ['first_name', 'last_name', 'passport', 'flight']
+        return super().clean_csv_file(required_fields)

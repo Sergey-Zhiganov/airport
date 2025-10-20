@@ -9,7 +9,13 @@
 
     {% if perms.dbapp.add_worker %}
         <a href="{% url 'worker_add' %}" class="btn btn-success mb-3">Добавить сотрудника</a>
+        <a href="{% url 'worker_import' %}" class="btn btn-warning mb-3">
+            <i class="bi bi-upload"></i> Импорт CSV
+        </a>
     {% endif %}
+    <a href="{% url 'worker_export' %}" class="btn btn-info mb-3">
+        <i class="bi bi-download"></i> Экспорт CSV
+    </a>
 
     <div class="card mb-4">
         <div class="card-body">
@@ -43,7 +49,7 @@
                 </a>
 
                 {% if perms.dbapp.delete_worker %}
-                <form method="post" action="{% url 'worker_delete' worker.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Вы уверены, что хотите удалить сотрудника {{ worker }}?');">
+                <form method="delete" action="{% url 'worker_delete' worker.id %}" class="position-absolute top-0 end-0 m-2" onsubmit="return confirm('Вы уверены, что хотите удалить сотрудника {{ worker }}?');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-sm btn-danger">
                         <i class="bi bi-trash"></i>

@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <a href="{% url back_url %}" class="btn btn-secondary mb-3">&larr; Назад</a>
+
+    <h2>{{ title }}</h2>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">Формат CSV файла</h5>
+            <p>Файл должен содержать следующие колонки (разделитель - точка с запятой):</p>
+            {% if title == 'Импорт сотрудников из CSV' %}
+            <ul>
+                <li><strong>username</strong> - логин (обязательно)</li>
+                <li><strong>last_name</strong> - фамилия (обязательно)</li>
+                <li><strong>first_name</strong> - имя (обязательно)</li>
+                <li><strong>email</strong> - email (обязательно)</li>
+                <li><strong>middle_name</strong> - отчество (опционально)</li>
+                <li><strong>phone</strong> - телефон (опционально)</li>
+                <li><strong>groups</strong> - группы через запятую (опционально)</li>
+                <li><strong>is_active</strong> - активен (True/False, по умолчанию True)</li>
+                <li><strong>is_staff</strong> - доступ к админке (True/False, по умолчанию False)</li>
+                <li><strong>password</strong> - пароль (опционально, если не указан - ставится временный)</li>
+            </ul>
+            {% elif title == 'Импорт авиакомпаний из CSV' %}
+            <ul>
+                <li><strong>name</strong> - название (обязательно)</li>
+                <li><strong>IATA_code</strong> - IATA код (обязательно)</li>
+                <li><strong>ICAO_code</strong> - ICAO код (обязательно)</li>
+                <li><strong>contact_person</strong> - контактное лицо (опционально)</li>
+                <li><strong>contact_phone</strong> - телефон (опционально)</li>
+                <li><strong>contact_email</strong> - email (опционально)</li>
+            </ul>
+            {% elif title == 'Импорт самолетов из CSV' %}
+            <ul>
+                <li><strong>tail_number</strong> - бортовой номер (обязательно)</li>
+                <li><strong>name</strong> - модель (обязательно)</li>
+                <li><strong>airline</strong> - авиакомпания (название) (обязательно)</li>
+                <li><strong>layout</strong> - компоновка (обязательно)</li>
+                <li><strong>rows</strong> - количество рядов (обязательно)</li>
+            </ul>
+            {% elif title == 'Импорт аэропортов из CSV' %}
+            <ul>
+                <li><strong>name</strong> - название (обязательно)</li>
+                <li><strong>IATA_code</strong> - IATA код (обязательно)</li>
+                <li><strong>ICAO_code</strong> - ICAO код (обязательно)</li>
+            </ul>
+            {% elif title == 'Импорт рейсов из CSV' %}
+            <ul>
+                <li><strong>number</strong> - номер рейса (обязательно)</li>
+                <li><strong>airplane</strong> - самолет (бортовой номер) (обязательно)</li>
+                <li><strong>departure_airport</strong> - аэропорт вылета (IATA код) (обязательно)</li>
+                <li><strong>arrival_airport</strong> - аэропорт прибытия (IATA код) (обязательно)</li>
+                <li><strong>flight_status</strong> - статус рейса (название) (обязательно)</li>
+                <li><strong>planned_departure</strong> - время вылета (опционально, формат: ДД.ММ.ГГГГ ЧЧ:ММ)</li>
+                <li><strong>planned_arrival</strong> - время прибытия (опционально, формат: ДД.ММ.ГГГГ ЧЧ:ММ)</li>
+            </ul>
+            {% elif title == 'Импорт пассажиров из CSV' %}
+            <ul>
+                <li><strong>first_name</strong> - имя (обязательно)</li>
+                <li><strong>last_name</strong> - фамилия (обязательно)</li>
+                <li><strong>passport</strong> - паспорт (обязательно)</li>
+                <li><strong>flight</strong> - номер рейса (обязательно)</li>
+                <li><strong>middle_name</strong> - отчество (опционально)</li>
+                <li><strong>check_in_passed</strong> - регистрация пройдена (True/False, по умолчанию False)</li>
+                <li><strong>boarding_passed</strong> - посадка пройдена (True/False, по умолчанию False)</li>
+                <li><strong>is_removed</strong> - снят с рейса (True/False, по умолчанию False)</li>
+            </ul>
+            {% endif %}
+
+            <a href="{% url export_url %}" class="btn btn-info mb-3">
+                <i class="bi bi-download"></i> Скачать шаблон CSV
+            </a>
+        </div>
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="mb-3">
+                    <label for="{{ form.csv_file.id_for_label }}" class="form-label">
+                        {{ form.csv_file.label }}
+                    </label>
+                    {{ form.csv_file }}
+                    {% if form.csv_file.errors %}
+                        <div class="text-danger">{{ form.csv_file.errors }}</div>
+                    {% endif %}
+                    {% if form.csv_file.help_text %}
+                        <div class="form-text">{{ form.csv_file.help_text }}</div>
+                    {% endif %}
+                </div>
+
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-upload"></i> Импортировать
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
