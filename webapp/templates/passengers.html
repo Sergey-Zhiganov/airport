@@ -54,7 +54,7 @@
         <div class="col passenger-card" 
              data-check-in="{{ passenger.check_in_passed|lower }}" 
              data-boarding="{{ passenger.boarding_passed|lower }}">
-            <div class="card h-100 p-3 d-flex flex-column align-items-center justify-content-center position-relative">
+            <div class="card h-100 p-4 d-flex flex-column align-items-center justify-content-center position-relative">
                 <a href="{% url 'passenger_edit' passenger.id %}" class="text-decoration-none w-100 h-100 d-flex flex-column align-items-center justify-content-center">
                     <i class="bi bi-person" style="font-size: 2.5rem; color: #0d6efd;"></i>
                     <div class="card-title mt-2 fw-bold text-center passenger-name">{{ passenger }}</div>
@@ -144,5 +144,6 @@ document.getElementById('filter_boarding').addEventListener('change', filterPass
 .passenger-card {
     transition: all 0.3s ease;
 }
+
 </style>
 {% endblock %}

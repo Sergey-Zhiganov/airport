@@ -56,7 +56,6 @@
                     🔴 - Занято<br>
                     🟢 - Выбрано вами<br>
                     🔵 - Текущее место<br>
-                    ⚪ - Недоступно для выбора
                 </small>
             </div>
         </div>
@@ -95,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const layout = '{{ layout }}';
     const rows = parseInt('{{ rows }}');
-    const occupiedSeats = JSON.parse('{{ occupied_seats|escapejs }}');
+    const occupiedSeats = {{ occupied_seats|safe }};
     const currentSeat = '{{ boarding_pass.seat|default:"" }}';
     const canModify = '{{ can_modify }}' === 'True';
     
@@ -142,9 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else if (canModify) {
                         seatClass += ' seat-available';
                         clickable = true;
-                    } else {
-                        seatClass += ' seat-disabled';
-                        seatSymbol = '⚪';
                     }
                     
                     rowHTML += `<span class="${seatClass}" data-seat="${seatCode}" data-clickable="${clickable}">${seatSymbol}</span>`;

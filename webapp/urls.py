@@ -80,6 +80,8 @@ urlpatterns = [
     path('backups/create/', create_backup, name='create_backup'),
     path('backups/<int:backup_id>/delete/', backup_delete, name='backup_delete'),
     path('backups/<int:backup_id>/download/', backup_download, name='backup_download'),
+    path('backups/<int:backup_id>/restore/', backup_restore, name='backup_restore'),
+    path('backups/restore-upload/', backup_restore_upload, name='backup_restore_upload'),
 
     path('analytics/', analytics_dashboard, name='analytics_dashboard'),
 ]

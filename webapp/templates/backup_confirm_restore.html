@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        Подтверждение восстановления
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">Внимание!</h5>
+                        <p class="mb-0">
+                            Вы собираетесь восстановить базу данных из резервной копии. 
+                            <strong>Все текущие данные будут заменены</strong> данными из выбранной резервной копии.
+                        </p>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6>Информация о резервной копии:</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Файл:</strong> {{ backup.filename }}</li>
+                                <li><strong>Тип:</strong> {{ backup.get_backup_type_display }}</li>
+                                <li><strong>Создан:</strong> {{ backup.created_at|date:"d.m.Y H:i" }}</li>
+                                <li><strong>Размер:</strong> {{ backup.file_size|filesizeformat }}</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="confirm_restore" required>
+                            <label class="form-check-label" for="confirm_restore">
+                                Я понимаю, что все текущие данные будут потеряны и заменены данными из резервной копии
+                            </label>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger" id="restore-btn" disabled>
+                                <i class="bi bi-database-up"></i>
+                                Выполнить восстановление
+                            </button>
+                            <a href="{% url 'backup_list' %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i>
+                                Отмена
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('confirm_restore').addEventListener('change', function() {
+    document.getElementById('restore-btn').disabled = !this.checked;
+});
+
+document.querySelector('form').addEventListener('submit', function(e) {
+    if (!document.getElementById('confirm_restore').checked) {
+        e.preventDefault();
+        alert('Пожалуйста, подтвердите понимание последствий восстановления');
+    }
+});
+</script>
+{% endblock %}

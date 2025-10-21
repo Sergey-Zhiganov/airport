@@ -29,7 +29,6 @@
             opacity: 0.9;
         }
         
-        /* Стили для горячих клавиш */
         kbd {
             background-color: #f8f9fa;
             border: 1px solid #dee2e6;
@@ -180,7 +179,6 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-// Функция показа справки по горячим клавишам
 function showHotkeysHelp() {
     const helpHtml = `
         <div class="modal fade" id="hotkeysHelp" tabindex="-1">
@@ -242,7 +240,6 @@ function showHotkeysHelp() {
     modal.show();
 }
 
-// Показываем подсказку при первом посещении
 document.addEventListener('DOMContentLoaded', function() {
     if (!localStorage.getItem('hotkeysShown')) {
         setTimeout(() => {

@@ -2,12 +2,15 @@ passwords.txt
 py.py
 classes_flypodolsk.png
 packages_flypodolsk.png
+classes_flypodolsk.dot
+packages_flypodolsk.dot
 insert.py
 .env
 *.bak
 
 backups/
 dbapp/__pycache__/
+dbapp/management/commands/__pycache__/
 dbapp/migrations/
 flypodolsk/__pycache__/
 webapp/__pycache__/

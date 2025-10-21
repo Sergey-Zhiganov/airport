@@ -1,3 +1,4 @@
+import os
 import re
 from typing import cast
 from django.db import models
@@ -14,39 +15,12 @@ def validate_phone(value: str):
             "Телефон должен содержать 11 цифр. Пример: 79254717170"
         )
 
-class BackupLog(models.Model):
-    BACKUP_TYPES = [
-        ('daily', 'Ежедневный'),
-        ('manual', 'Ручной'),
-    ]
-    
-    STATUS_CHOICES = [
-        ('success', 'Успешно'),
-        ('error', 'Ошибка'),
-        ('running', 'Выполняется'),
-    ]
-    
-    backup_type = models.CharField('Тип бэкапа', max_length=10, choices=BACKUP_TYPES)
-    filename = models.CharField('Имя файла', max_length=255)
-    file_path = models.CharField('Путь к файлу', max_length=500)
-    file_size = models.BigIntegerField('Размер файла', null=True, blank=True)
-    status = models.CharField('Статус', max_length=10, choices=STATUS_CHOICES)
-    error_message = models.TextField('Сообщение об ошибке', blank=True)
-    created_at = models.DateTimeField('Дата создания', auto_now_add=True)
-    
-    class Meta:
-        verbose_name = 'Лог резервного копирования'
-        verbose_name_plural = 'Логи резервного копирования'
-        ordering = ['-created_at']
-    
-    def __str__(self):
-        return f"{self.get_backup_type_display()} - {self.created_at.strftime('%d.%m.%Y %H:%M')}" # type: ignore
-
 class Worker(AbstractUser):
     middle_name = models.CharField(
         "Отчество",
         max_length=100,
         null=True,
+        blank=True,
         help_text='Введите отчество (если имеется)'
     )
     phone = EncryptedTextField(
@@ -634,6 +608,47 @@ class AnalyticsTimeEfficiency(models.Model):
         managed = False
         db_table = 'analytics_time_efficiency'
 
+class BackupLog(models.Model):
+    BACKUP_TYPES = [
+        ('daily', 'Ежедневный'),
+        ('manual', 'Ручной'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('success', 'Успешно'),
+        ('error', 'Ошибка'),
+        ('running', 'Выполняется'),
+    ]
+    
+    backup_type = models.CharField('Тип бэкапа', max_length=10, choices=BACKUP_TYPES)
+    filename = models.CharField('Имя файла', max_length=255)
+    file_path = models.CharField('Путь к файлу', max_length=500)
+    file_size = models.BigIntegerField('Размер файла', null=True, blank=True)
+    status = models.CharField('Статус', max_length=10, choices=STATUS_CHOICES)
+    error_message = models.TextField('Сообщение об ошибке', blank=True)
+    created_at = models.DateTimeField('Дата создания', auto_now_add=True)
+
+    restored_at = models.DateTimeField(null=True, blank=True, verbose_name="Восстановлено")
+    restored_by = models.ForeignKey(
+        Worker, 
+        null=True, 
+        blank=True, 
+        on_delete=models.SET_NULL,
+        verbose_name="Восстановил",
+        related_name='restored_backups'
+    )
+    
+    class Meta:
+        verbose_name = 'Лог резервного копирования'
+        verbose_name_plural = 'Логи резервного копирования'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.get_backup_type_display()} - {self.created_at.strftime('%d.%m.%Y %H:%M')}" # type: ignore
+    
+    def can_be_restored(self):
+        return self.status == 'success' and os.path.exists(self.file_path)
+
 @receiver(pre_save, sender='dbapp.Worker')
 def deactivate_worker(sender, instance: Worker, **kwargs):
     if instance.pk:
@@ -644,3 +659,4 @@ def deactivate_worker(sender, instance: Worker, **kwargs):
 @receiver(post_delete, sender='dbapp.Worker')
 def delete_worker(sender, instance: Worker, **kwargs):
     CheckInDesk.objects.filter(worker=instance).update(worker=None, is_active=False)
+

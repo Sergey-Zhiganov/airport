@@ -1,5 +1,3 @@
-import csv
-import io
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.forms import ValidationError

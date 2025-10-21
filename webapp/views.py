@@ -1,5 +1,7 @@
+import csv
 from datetime import datetime
 from functools import wraps
+import io
 import json
 import os
 from typing import Literal
@@ -16,6 +18,8 @@ from django.utils import timezone
 import json
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.core.management import call_command
+from django.conf import settings
 
 from dbapp.models import *
 from webapp.forms import *
@@ -195,7 +199,6 @@ def worker_edit(request: HttpRequest, worker_id: int):
 def worker_delete(request: HttpRequest, worker_id: int):
     worker = get_object_or_404(Worker, pk=worker_id)
 
-    print(worker == request.user)
     if worker == request.user:
         messages.error(request, "Вы не можете удалить самого себя.")
         return redirect('workers')
@@ -1842,6 +1845,78 @@ def create_backup(request: HttpRequest):
         messages.success(request, "Резервная копия успешно создана")
     except Exception as e:
         messages.error(request, f"Ошибка создания бэкапа: {str(e)}")
+    
+    return redirect('backup_list')
+
+@permission_required('dbapp.change_backuplog')
+def backup_restore(request: HttpRequest, backup_id: int):
+    backup = get_object_or_404(BackupLog, pk=backup_id)
+    
+    if not backup.can_be_restored():
+        messages.error(request, "Невозможно восстановить из этой резервной копии")
+        return redirect('backup_list')
+    
+    if request.method == 'GET':
+        return render(request, 'backup_confirm_restore.html', {'backup': backup})
+    
+    try:
+        success = call_command('restore_database', backup.file_path, backup_id=backup_id)
+        
+        if success:
+            backup.restored_at = timezone.now()
+            backup.restored_by = request.user
+            backup.save()
+            
+            messages.success(request, "База данных успешно восстановлена из резервной копии")
+            
+            messages.warning(request, "Рекомендуется перезайти в систему после восстановления")
+            
+        else:
+            messages.error(request, "Ошибка при восстановлении базы данных")
+            
+    except Exception as e:
+        messages.error(request, f"Ошибка восстановления: {str(e)}")
+    
+    return redirect('backup_list')
+
+@permission_required('dbapp.change_backuplog')
+def backup_restore_upload(request: HttpRequest):
+    if request.method == 'POST':
+        backup_file = request.FILES.get('backup_file')
+        
+        if not backup_file:
+            messages.error(request, "Файл не выбран")
+            return redirect('backup_list')
+        
+        if not backup_file.name:
+            messages.error(request, "Файл не имеет имени")
+            return redirect('backup_list')
+        
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads', 'backups')
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        file_path = os.path.join(upload_dir, backup_file.name)
+        
+        try:
+            with open(file_path, 'wb+') as destination:
+                for chunk in backup_file.chunks():
+                    destination.write(chunk)
+            
+            success = call_command('restore_database', file_path)
+            
+            if success:
+                messages.success(request, "База данных успешно восстановлена из загруженного файла")
+                messages.warning(request, "Рекомендуется перезайти в систему после восстановления")
+            else:
+                messages.error(request, "Ошибка при восстановлении базы данных")
+            
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                
+        except Exception as e:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            messages.error(request, f"Ошибка восстановления: {str(e)}")
     
     return redirect('backup_list')
 
