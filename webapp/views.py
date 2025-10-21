@@ -1,5 +1,7 @@
+import csv
 from datetime import datetime
 from functools import wraps
+import io
 import json
 import os
 from typing import Literal
@@ -195,7 +197,6 @@ def worker_edit(request: HttpRequest, worker_id: int):
 def worker_delete(request: HttpRequest, worker_id: int):
     worker = get_object_or_404(Worker, pk=worker_id)
 
-    print(worker == request.user)
     if worker == request.user:
         messages.error(request, "Вы не можете удалить самого себя.")
         return redirect('workers')

@@ -64,7 +64,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const iataPrefix = document.getElementById('iataPrefix');
     const iataData = {{ iata_codes|safe }};
 
-    // IATA-префикс
     function updateIATAPrefix() {
         const code = iataData[airplaneSelect.value] || '---';
         iataPrefix.textContent = code;

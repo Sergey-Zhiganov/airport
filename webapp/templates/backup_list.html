@@ -49,7 +49,6 @@
              data-status="{{ backup.status }}"
              data-filename="{{ backup.filename|lower }}">
             <div class="card h-100 p-3 d-flex flex-column position-relative">
-                <!-- Основной контент карточки -->
                 <div class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-center">
                     <i class="bi bi-cloud-arrow-down mb-2" style="font-size: 2.5rem; 
                         {% if backup.status == 'success' %}color: #198754;
@@ -81,7 +80,6 @@
                     </div>
                 </div>
 
-                <!-- Блок ошибки - отдельно внизу -->
                 {% if backup.error_message %}
                 <div class="mt-2 pt-2 border-top">
                     <small class="text-danger">
@@ -91,7 +89,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Кнопки действий -->
                 <div class="position-absolute top-0 end-0 m-2 d-flex gap-1">
                     {% if backup.status == 'success' and perms.dbapp.view_backuplog %}
                     <a href="{% url 'backup_download' backup.id %}" class="btn btn-sm btn-primary" title="Скачать">
@@ -150,7 +147,6 @@ document.getElementById('search_filename').addEventListener('input', filterBacku
 document.getElementById('filter_type').addEventListener('change', filterBackups);
 document.getElementById('filter_status').addEventListener('change', filterBackups);
 
-// Инициализация фильтрации при загрузке
 document.addEventListener('DOMContentLoaded', filterBackups);
 </script>
 
@@ -173,12 +169,10 @@ document.addEventListener('DOMContentLoaded', filterBackups);
     padding: 0;
 }
 
-/* Гарантируем, что карточка будет достаточной высоты */
 .backup-card .card {
     min-height: 220px;
 }
 
-/* Обеспечиваем правильное расположение контента */
 .flex-grow-1 {
     flex: 1 1 auto;
 }

@@ -1,15 +1,10 @@
-from typing import cast
-
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from django.apps import apps
 from django.contrib.admin.models import LogEntry, ADDITION, CHANGE, DELETION
-from django.contrib.auth import login
 from django.contrib.auth.models import Group
-from django.middleware.csrf import get_token
 from django.contrib.contenttypes.models import ContentType
 
-from dbapp.models import Worker
 from .serializers import SERIALIZERS, GroupSerializer
 
 class BaseViewSet(viewsets.ModelViewSet):
